@@ -3,34 +3,34 @@ import TripPlan from '../models/TripPlan.js';
 /**
  * Create a new trip plan
  */
-export const createTripPlan = async (req, res) => {
-	try {
-		const { userId } = req.params;
-		const tripPlan = new TripPlan({ ...req.body });	//bug??
-		await tripPlan.save();
-		res.status(201).json({ success: true, data: tripPlan });
-	} catch (error) {
-		res.status(400).json({ success: false, message: error.message });
-	}
-};
+// export const createTripPlan = async (req, res) => {
+// 	try {
+// 		const { userId } = req.params;
+// 		const tripPlan = new TripPlan({ ...req.body });	//bug??
+// 		await tripPlan.save();
+// 		res.status(201).json({ success: true, data: tripPlan });
+// 	} catch (error) {
+// 		res.status(400).json({ success: false, message: error.message });
+// 	}
+// };
 
 /**
  * Get trip plan by ID
  */
-export const getTripPlan = async (req, res) => {
-	try {
-		const { userId, tripId } = req.params;
-		const tripPlan = await TripPlan.findById(tripId);
-
-		if (!tripPlan) {
-			return res.status(404).json({ success: false, message: 'Trip plan not found' });
-		}
-
-		res.status(200).json({ success: true, data: tripPlan });
-	} catch (error) {
-		res.status(400).json({ success: false, message: error.message });
-	}
-};
+// export const getTripPlan = async (req, res) => {
+// 	try {
+// 		const { userId, tripId } = req.params;
+// 		const tripPlan = await TripPlan.findById(tripId);
+//
+// 		if (!tripPlan) {
+// 			return res.status(404).json({ success: false, message: 'Trip plan not found' });
+// 		}
+//
+// 		res.status(200).json({ success: true, data: tripPlan });
+// 	} catch (error) {
+// 		res.status(400).json({ success: false, message: error.message });
+// 	}
+// };
 
 /**
  * Update trip plan by ID
