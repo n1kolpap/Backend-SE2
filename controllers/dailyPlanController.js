@@ -1,133 +1,255 @@
-import TripPlan from '../models/TripPlan.js';
+/**
+ * Daily Plan controller
+ * Handle HTTP requests for daily plan operations
+ */
+
+import * as dailyPlanService from '../services/dailyPlanService.js';
+import { sendSuccess, sendError } from '../utils/responses.js';
+import { HTTP_STATUS, MESSAGES } from '../config/constants.js';
 
 /**
- * Get daily plan by date
+ * Get all daily plans for a trip
+ * @route GET /api/user/:userId/tripPlan/:tripId/dailyPlan
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
  */
-// export const getDailyPlan = async (req, res) => {
-// 	try {
-// 		const { userId, tripId, date } = req.params;
-// 		const tripPlan = await TripPlan.findById(tripId);
-//
-// 		if (!tripPlan) {
-// 			return res.status(404).json({ success: false, message: 'Trip plan not found' });
-// 		}
-//
-// 		const dailyPlan = tripPlan.activities.filter(activity => activity.day === date);
-// 		res.status(200).json({ success: true, data: dailyPlan });
-// 	} catch (error) {
-// 		res.status(400).json({ success: false, message: error.message });
-// 	}
-// };
-
-/**
- * Add activity to daily plan
- */
-// export const addActivity = async (req, res) => {
-// 	try {
-// 		const { userId, tripId, date, activityId } = req.params;
-// 		const tripPlan = await TripPlan.findById(tripId);
-//
-// 		if (!tripPlan) {
-// 			return res.status(404).json({ success: false, message: 'Trip plan not found' });
-// 		}
-//
-// 		const newActivity = { ...req.body, day: date, activityId };
-// 		tripPlan.activities.push(newActivity);
-// 		await tripPlan.save();
-// 		res.status(201).json({ success: true, data: newActivity });
-// 	} catch (error) {
-// 		res.status(400).json({ success: false, message: error.message });
-// 	}
-// };
-
-/**
- * Delete activity from daily plan
- */
-export const deleteActivity = async (req, res) => {
-	try {
-		const { userId, tripId, date, activityId } = req.params;
-		const tripPlan = await TripPlan.findById(tripId);
-
-		if (!tripPlan) {
-			return res.status(404).json({ success: false, message: 'Trip plan not found' });
-		}
-
-		tripPlan.activities = tripPlan.activities.filter(activity => activity.activityId !== activityId);
-		await tripPlan.save();
-
-		res.status(204).json({ success: true, message: 'Activity removed successfully' });
-	} catch (error) {
-		res.status(400).json({ success: false, message: error.message });
-	}
-};
-
-// MOCK DATA
-
-const mockDailyPlans = [
-	{
-		userId: '1',
-		tripId: '1',
-		date: '2025-11-21',
-		activities: [
-			{ name: 'Breakfast at the hotel', time: '08:00' },
-			{ name: 'Visit Hollywood Walk of Fame', time: '10:00' },
-		],
-	},
-];
-
-// export const getDailyPlan = async (req, res) => {
-// 	const { userId, tripId, date } = req.params;
-//
-// 	const dailyPlan = process.env.MONGO_URI
-// 	? await DailyPlan.findOne({ userId, tripId, date })
-// 	: mockDailyPlans.find(plan => plan.userId === userId && plan.tripId === tripId && plan.date === date);
-//
-// 	if (!dailyPlan) {
-// 		return res.status(404).json({ success: false, message: 'Daily plan not found' });
-// 	}
-//
-// 	res.status(200).json({ success: true, data: dailyPlan });
-// };
-
-export const getDailyPlan = async (req, res) => {
-	const { userId, tripId, date } = req.params;
-
-	try {
-		const dailyPlan = process.env.MONGO_URI
-		? await DailyPlan.findOne({ userId, tripId, date })
-		: mockDailyPlans.find(plan => plan.userId === userId && plan.tripId === tripId && plan.date === date);
-
-		if (!dailyPlan) {
-			return res.status(404).json({ success: false, message: 'Daily plan not found' });
-		}
-
-		res.status(200).json({ success: true, data: dailyPlan });
-	} catch (error) {
-		res.status(400).json({ success: false, message: error.message });
-	}
+export const getDailyPlans = async (req, res) => {
+  try {
+    const { tripId } = req.params;
+    const userId = req.user.userId;
+    
+    const dailyPlans = dailyPlanService.getTripDailyPlans(tripId, userId);
+    
+    return sendSuccess(
+      res,
+      HTTP_STATUS.OK,
+      dailyPlans,
+      'Daily plans retrieved successfully'
+    );
+  } catch (error) {
+    if (error.message === 'Trip plan not found') {
+      return sendError(
+        res,
+        HTTP_STATUS.NOT_FOUND,
+        MESSAGES.TRIP_NOT_FOUND
+      );
+    }
+    
+    if (error.message === 'Unauthorized access to trip plan') {
+      return sendError(
+        res,
+        HTTP_STATUS.FORBIDDEN,
+        'Access denied'
+      );
+    }
+    
+    return sendError(
+      res,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      MESSAGES.SERVER_ERROR,
+      error.message
+    );
+  }
 };
 
 /**
  * Add activity to daily plan
+ * @route POST /api/user/:userId/tripPlan/:tripId/dailyPlan/:date/activity
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
  */
 export const addActivity = async (req, res) => {
-	const { userId, tripId, date } = req.params;
+  try {
+    const { tripId, date } = req.params;
+    const userId = req.user.userId;
+    
+    const activity = dailyPlanService.addActivityToDailyPlan(
+      tripId,
+      date,
+      req.body,
+      userId
+    );
+    
+    return sendSuccess(
+      res,
+      HTTP_STATUS.CREATED,
+      activity,
+      MESSAGES.ACTIVITY_ADDED
+    );
+  } catch (error) {
+    if (error.message === 'Trip plan not found') {
+      return sendError(
+        res,
+        HTTP_STATUS.NOT_FOUND,
+        MESSAGES.TRIP_NOT_FOUND
+      );
+    }
+    
+    if (error.message === 'Unauthorized access to trip plan') {
+      return sendError(
+        res,
+        HTTP_STATUS.FORBIDDEN,
+        'Access denied'
+      );
+    }
+    
+    return sendError(
+      res,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      MESSAGES.SERVER_ERROR,
+      error.message
+    );
+  }
+};
 
-	try {
-		const tripPlan = process.env.MONGO_URI
-		? await TripPlan.findById(tripId)
-		: mockTripPlans.find(plan => plan._id === tripId);
+/**
+ * Remove activity from daily plan
+ * @route DELETE /api/user/:userId/tripPlan/:tripId/dailyPlan/:date/activity/:activityId
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+export const removeActivity = async (req, res) => {
+  try {
+    const { tripId, date, activityId } = req.params;
+    const userId = req.user.userId;
+    
+    dailyPlanService.removeActivityFromDailyPlan(tripId, date, activityId, userId);
+    
+    return sendSuccess(
+      res,
+      HTTP_STATUS.OK,
+      null,
+      MESSAGES.ACTIVITY_REMOVED
+    );
+  } catch (error) {
+    if (error.message === 'Trip plan not found') {
+      return sendError(
+        res,
+        HTTP_STATUS.NOT_FOUND,
+        MESSAGES.TRIP_NOT_FOUND
+      );
+    }
+    
+    if (error.message === 'Activity not found') {
+      return sendError(
+        res,
+        HTTP_STATUS.NOT_FOUND,
+        MESSAGES.ACTIVITY_NOT_FOUND
+      );
+    }
+    
+    if (error.message === 'Unauthorized access to trip plan') {
+      return sendError(
+        res,
+        HTTP_STATUS.FORBIDDEN,
+        'Access denied'
+      );
+    }
+    
+    return sendError(
+      res,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      MESSAGES.SERVER_ERROR,
+      error.message
+    );
+  }
+};
 
-		if (!tripPlan) {
-			return res.status(404).json({ success: false, message: 'Trip plan not found' });
-		}
+/**
+ * Mark activity as completed
+ * @route POST /api/user/:userId/tripPlan/:tripId/dailyPlan/:date/activity/:activityId/completed
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+export const markActivityCompleted = async (req, res) => {
+  try {
+    const { tripId, date, activityId } = req.params;
+    const userId = req.user.userId;
+    
+    const activity = dailyPlanService.completeActivity(tripId, date, activityId, userId);
+    
+    return sendSuccess(
+      res,
+      HTTP_STATUS.OK,
+      activity,
+      MESSAGES.ACTIVITY_COMPLETED
+    );
+  } catch (error) {
+    if (error.message === 'Trip plan not found') {
+      return sendError(
+        res,
+        HTTP_STATUS.NOT_FOUND,
+        MESSAGES.TRIP_NOT_FOUND
+      );
+    }
+    
+    if (error.message === 'Activity not found') {
+      return sendError(
+        res,
+        HTTP_STATUS.NOT_FOUND,
+        MESSAGES.ACTIVITY_NOT_FOUND
+      );
+    }
+    
+    if (error.message === 'Unauthorized access to trip plan') {
+      return sendError(
+        res,
+        HTTP_STATUS.FORBIDDEN,
+        'Access denied'
+      );
+    }
+    
+    return sendError(
+      res,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      MESSAGES.SERVER_ERROR,
+      error.message
+    );
+  }
+};
 
-		const newActivity = { ...req.body, day: date };
-		tripPlan.activities.push(newActivity);
-		await tripPlan.save();
-
-		res.status(201).json({ success: true, data: newActivity });
-	} catch (error) {
-		res.status(400).json({ success: false, message: error.message });
-	}
+/**
+ * Add note to daily plan
+ * @route POST /api/user/:userId/tripPlan/:tripId/dailyPlan/:date/note
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+export const addNote = async (req, res) => {
+  try {
+    const { tripId, date } = req.params;
+    const { note } = req.body;
+    const userId = req.user.userId;
+    
+    const dailyPlan = dailyPlanService.addNoteToDailyPlan(tripId, date, note, userId);
+    
+    return sendSuccess(
+      res,
+      HTTP_STATUS.OK,
+      dailyPlan,
+      MESSAGES.NOTE_ADDED
+    );
+  } catch (error) {
+    if (error.message === 'Trip plan not found') {
+      return sendError(
+        res,
+        HTTP_STATUS.NOT_FOUND,
+        MESSAGES.TRIP_NOT_FOUND
+      );
+    }
+    
+    if (error.message === 'Unauthorized access to trip plan') {
+      return sendError(
+        res,
+        HTTP_STATUS.FORBIDDEN,
+        'Access denied'
+      );
+    }
+    
+    return sendError(
+      res,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      MESSAGES.SERVER_ERROR,
+      error.message
+    );
+  }
 };

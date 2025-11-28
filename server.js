@@ -1,54 +1,23 @@
-// import express from 'express';
-// import dotenv from 'dotenv';
-// import connectDB from './config/database.js';
-// import errorHandler from './middleware/errorHandler.js';
-// import routes from './routes/index.js';
-// import bodyParser from 'body-parser';
-//
-// dotenv.config();
-//
-// const app = express();
-// connectDB();
-//
-// // Middleware
-// app.use(bodyParser.json());
-// app.use('/api', routes);
-// app.use(errorHandler);
-//
-// const PORT = process.env.PORT || 5000;
-//
-// // Start server
-// app.listen(PORT, () => {
-// 	console.log(`Server running on port ${PORT}`);
-// });
+/**
+ * Server entry point
+ */
 
-import express from 'express';
 import dotenv from 'dotenv';
-import connectDB from './config/database.js';
-import errorHandler from './middleware/errorHandler.js';
-import routes from './routes/index.js';
-import bodyParser from 'body-parser';
-import { initializeMockData } from './controllers/dataInit.js';
+import app from './app.js';
 
+// Load environment variables
 dotenv.config();
 
-const app = express();
+const PORT = process.env.PORT || 3000;
+const NODE_ENV = process.env.NODE_ENV || 'development';
 
-const startServer = async () => {
-	await connectDB();
-	await initializeMockData(); // Initialize mock data
-
-	// Middleware
-	app.use(bodyParser.json());
-	app.use('/api', routes);
-	app.use(errorHandler);
-
-	const PORT = process.env.PORT || 5000;
-
-	// Start server
-	app.listen(PORT, () => {
-		console.log(`Server running on port ${PORT}`);
-	});
-};
-
-startServer();
+// Start server
+app.listen(PORT, () => {
+  console.log('=================================');
+  console.log(`🚀 TripTrail API Server Started`);
+  console.log(`📍 Environment: ${NODE_ENV}`);
+  console.log(`🌐 Port: ${PORT}`);
+  console.log(`🔗 URL: http://localhost:${PORT}`);
+  console.log(`💚 Health: http://localhost:${PORT}/api/health`);
+  console.log('=================================');
+});

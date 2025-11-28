@@ -1,32 +1,58 @@
 /**
- * Centralized error handler
+ * Centralized error handling middleware
  */
-// const errorHandler = (err, req, res, next) => {
-// 	if (res.headersSent) {
-// 		return next(err);
-// 	}
-// 	res.status(500).json({ success: false, error: err.message });
-// };
-//
-// export default errorHandler;
+
+import { HTTP_STATUS, MESSAGES } from '../config/constants.js';
 
 /**
- * Centralized error handler
+ * Global error handler
+ * @param {Error} err - Error object
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
  */
-const errorHandler = (err, req, res, next) => {
-	if (err.name === 'ValidationError') {
-		return res.status(400).json({ success: false, message: 'Validation error', errors: err.errors });
-	}
-
-	if (err instanceof mongoose.Error.CastError) {
-		return res.status(404).json({ success: false, message: 'Resource not found' });
-	}
-
-	if (res.headersSent) {
-		return next(err);
-	}
-
-	res.status(500).json({ success: false, message: 'Internal server error', error: err.message });
+export const errorHandler = (err, req, res, next) => {
+  console.error('Error:', err);
+  
+  // Default error
+  let statusCode = HTTP_STATUS.INTERNAL_SERVER_ERROR;
+  let message = MESSAGES.SERVER_ERROR;
+  let error = err.message;
+  
+  // Validation error
+  if (err.name === 'ValidationError') {
+    statusCode = HTTP_STATUS.BAD_REQUEST;
+    message = 'Validation error';
+  }
+  
+  // JWT errors
+  if (err.name === 'JsonWebTokenError') {
+    statusCode = HTTP_STATUS.UNAUTHORIZED;
+    message = 'Invalid token';
+  }
+  
+  if (err.name === 'TokenExpiredError') {
+    statusCode = HTTP_STATUS.UNAUTHORIZED;
+    message = 'Token expired';
+  }
+  
+  // Send error response
+  res.status(statusCode).json({
+    success: false,
+    message,
+    error: process.env.NODE_ENV === 'development' ? error : undefined
+  });
 };
 
-export default errorHandler;
+/**
+ * 404 Not Found handler
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+export const notFoundHandler = (req, res) => {
+  res.status(HTTP_STATUS.NOT_FOUND).json({
+    success: false,
+    message: 'Route not found',
+    error: `Cannot ${req.method} ${req.originalUrl}`
+  });
+};
