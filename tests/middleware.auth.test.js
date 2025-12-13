@@ -1,14 +1,6 @@
 import test from 'ava';
 import esmock from 'esmock';
 
-//copy paste
-import http from "node:http";
-// import test from "ava";
-import got from "got";
-import app from "../app.js";
-import dotenv from "dotenv";
-dotenv.config();
-
 /**
  * auth.js calls jwt.verify(token, process.env.JWT_SECRET).
  * Even though we mock jwt.verify in most tests, setting this avoids
