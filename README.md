@@ -60,6 +60,8 @@ triptrail-api/
 │   ├── authController.js     # Authentication handlers
 │   ├── tripPlanController.js # Trip plan handlers
 │   └── dailyPlanController.js # Daily plan handlers
+├── docs/
+│   └── triptrail.yaml       # Api documentation
 ├── middleware/
 │   ├── auth.js              # JWT authentication
 │   ├── validation.js        # Input validation
@@ -499,5 +501,6 @@ For issues or questions:
 4. Check that date formats are YYYY-MM-DD
 
 ## 📄 License
+
 
 MIT
