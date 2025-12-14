@@ -595,3 +595,4 @@ One-Off Resources	User	/user	POST	3 params
 One-Off Resources	User	/user/login	PUT	2 params
 
 Generate the complete backend.
+Generate the new swagger file/api `triptrail.yaml`
