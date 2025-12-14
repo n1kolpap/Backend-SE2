@@ -11,9 +11,7 @@
   },
   "ava": {
     "files": [
-      "tests/init_tests.js",
-      "tests/dailyPlanRoutes_tests.js",
-      "tests/tripPlanRoutes_tests.js"
+      "tests/**/*.js"
     ]
   },
   "keywords": [
@@ -39,3 +37,4 @@
     "nodemon": "^3.0.1"
   }
 }
+
