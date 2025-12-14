@@ -1,10 +1,11 @@
+import dotenv from "dotenv";
+dotenv.config({ path: ".env.example" }); // or "./.env.example"
+
 import http from "node:http"; 
 import test from "ava"; 
 import got from "got"; 
 import app from "../app.js";
-import dotenv from "dotenv";
 
-dotenv.config();
 
 test.before(async (t) => {
 	t.context.server = http.createServer(app);
