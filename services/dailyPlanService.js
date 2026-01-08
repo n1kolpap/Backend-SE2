@@ -31,12 +31,8 @@ const verifyTripOwnership = (tripId, userId) => {
  * @returns {Array} Array of daily plans
  */
 export const getTripDailyPlans = (tripId, userId) => {
-  try {
-    verifyTripOwnership(tripId, userId);
-    return DailyPlan.findByTripId(tripId);
-  } catch (error) {
-    throw error;
-  }
+  verifyTripOwnership(tripId, userId);
+  return DailyPlan.findByTripId(tripId);
 };
 
 /**
@@ -47,19 +43,15 @@ export const getTripDailyPlans = (tripId, userId) => {
  * @returns {Object} Daily plan
  */
 export const getDailyPlanByDate = (tripId, date, userId) => {
-  try {
-    verifyTripOwnership(tripId, userId);
-    
-    const dailyPlan = DailyPlan.findByTripAndDate(tripId, date);
-    
-    if (!dailyPlan) {
-      throw new Error('Daily plan not found for this date');
-    }
-    
-    return dailyPlan;
-  } catch (error) {
-    throw error;
+  verifyTripOwnership(tripId, userId);
+
+  const dailyPlan = DailyPlan.findByTripAndDate(tripId, date);
+
+  if (!dailyPlan) {
+    throw new Error('Daily plan not found for this date');
   }
+
+  return dailyPlan;
 };
 
 /**
@@ -71,14 +63,10 @@ export const getDailyPlanByDate = (tripId, date, userId) => {
  * @returns {Object} Added activity
  */
 export const addActivityToDailyPlan = (tripId, date, activityData, userId) => {
-  try {
-    verifyTripOwnership(tripId, userId);
-    
-    const activity = DailyPlan.addActivity(tripId, date, activityData);
-    return activity;
-  } catch (error) {
-    throw error;
-  }
+  verifyTripOwnership(tripId, userId);
+
+  const activity = DailyPlan.addActivity(tripId, date, activityData);
+  return activity;
 };
 
 /**
@@ -90,7 +78,6 @@ export const addActivityToDailyPlan = (tripId, date, activityData, userId) => {
  * @returns {boolean} Success status
  */
 export const removeActivityFromDailyPlan = (tripId, date, activityId, userId) => {
-  try {
     verifyTripOwnership(tripId, userId);
     
     const success = DailyPlan.removeActivity(tripId, date, activityId);
@@ -100,9 +87,6 @@ export const removeActivityFromDailyPlan = (tripId, date, activityId, userId) =>
     }
     
     return success;
-  } catch (error) {
-    throw error;
-  }
 };
 
 /**
@@ -114,19 +98,15 @@ export const removeActivityFromDailyPlan = (tripId, date, activityId, userId) =>
  * @returns {Object} Updated activity
  */
 export const completeActivity = (tripId, date, activityId, userId) => {
-  try {
-    verifyTripOwnership(tripId, userId);
-    
-    const activity = DailyPlan.markActivityCompleted(tripId, date, activityId);
-    
-    if (!activity) {
-      throw new Error('Activity not found');
-    }
-    
-    return activity;
-  } catch (error) {
-    throw error;
+  verifyTripOwnership(tripId, userId);
+
+  const activity = DailyPlan.markActivityCompleted(tripId, date, activityId);
+
+  if (!activity) {
+    throw new Error('Activity not found');
   }
+
+  return activity;
 };
 
 /**
@@ -138,12 +118,8 @@ export const completeActivity = (tripId, date, activityId, userId) => {
  * @returns {Object} Updated daily plan
  */
 export const addNoteToDailyPlan = (tripId, date, noteText, userId) => {
-  try {
-    verifyTripOwnership(tripId, userId);
-    
-    const dailyPlan = DailyPlan.addNote(tripId, date, noteText);
-    return dailyPlan;
-  } catch (error) {
-    throw error;
-  }
+  verifyTripOwnership(tripId, userId);
+
+  const dailyPlan = DailyPlan.addNote(tripId, date, noteText);
+  return dailyPlan;
 };
