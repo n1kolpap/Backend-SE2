@@ -13,11 +13,7 @@ import { generateDateRange } from '../utils/helpers.js';
  * @returns {Array} Array of trip plans
  */
 export const getUserTripPlans = (userId) => {
-  try {
-    return TripPlan.findByUserId(userId);
-  } catch (error) {
-    throw error;
-  }
+  return TripPlan.findByUserId(userId);
 };
 
 /**
@@ -28,22 +24,18 @@ export const getUserTripPlans = (userId) => {
  * @throws {Error} If trip not found or unauthorized
  */
 export const getTripPlanById = (tripId, userId) => {
-  try {
-    const trip = TripPlan.findById(tripId);
-    
-    if (!trip) {
-      throw new Error('Trip plan not found');
-    }
-    
-    // Check authorization
-    if (trip.userId !== userId) {
-      throw new Error('Unauthorized access to trip plan');
-    }
-    
-    return trip;
-  } catch (error) {
-    throw error;
+  const trip = TripPlan.findById(tripId);
+
+  if (!trip) {
+    throw new Error('Trip plan not found');
   }
+
+  // Check authorization
+  if (trip.userId !== userId) {
+    throw new Error('Unauthorized access to trip plan');
+  }
+
+  return trip;
 };
 
 /**
@@ -53,7 +45,6 @@ export const getTripPlanById = (tripId, userId) => {
  * @returns {Object} Created trip plan
  */
 export const createNewTripPlan = (userId, tripData) => {
-  try {
     const trip = TripPlan.createTripPlan(userId, tripData);
     
     // Generate daily plans for the trip date range
@@ -63,9 +54,6 @@ export const createNewTripPlan = (userId, tripData) => {
     });
     
     return trip;
-  } catch (error) {
-    throw error;
-  }
 };
 
 /**
@@ -77,9 +65,8 @@ export const createNewTripPlan = (userId, tripData) => {
  * @throws {Error} If trip not found or unauthorized
  */
 export const updateExistingTripPlan = (tripId, userId, updateData) => {
-  try {
-    const trip = getTripPlanById(tripId, userId);
-    
+    getTripPlanById(tripId, userId);
+
     const updatedTrip = TripPlan.updateTripPlan(tripId, updateData);
     
     if (!updatedTrip) {
@@ -87,9 +74,6 @@ export const updateExistingTripPlan = (tripId, userId, updateData) => {
     }
     
     return updatedTrip;
-  } catch (error) {
-    throw error;
-  }
 };
 
 /**
@@ -100,17 +84,13 @@ export const updateExistingTripPlan = (tripId, userId, updateData) => {
  * @throws {Error} If trip not found or unauthorized
  */
 export const deleteTripPlanById = (tripId, userId) => {
-  try {
-    const trip = getTripPlanById(tripId, userId);
-    
-    const success = TripPlan.deleteTripPlan(tripId);
-    
-    if (!success) {
-      throw new Error('Failed to delete trip plan');
-    }
-    
-    return success;
-  } catch (error) {
-    throw error;
+  getTripPlanById(tripId, userId);
+
+  const success = TripPlan.deleteTripPlan(tripId);
+
+  if (!success) {
+    throw new Error('Failed to delete trip plan');
   }
+
+  return success;
 };

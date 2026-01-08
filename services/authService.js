@@ -13,7 +13,6 @@ import { findByUsername, createUser } from '../models/User.js';
  * @throws {Error} If username already exists
  */
 export const registerUser = async (userData) => {
-  try {
     // Check if user already exists
     const existingUser = findByUsername(userData.username);
     
@@ -29,11 +28,8 @@ export const registerUser = async (userData) => {
     });
     
     // Return user without password
-    const { password, ...userWithoutPassword } = user;
+    const { password: _, ...userWithoutPassword } = user;
     return userWithoutPassword;
-  } catch (error) {
-    throw error;
-  }
 };
 
 /**
@@ -44,34 +40,30 @@ export const registerUser = async (userData) => {
  * @throws {Error} If credentials are invalid
  */
 export const loginUser = async (username, password) => {
-  try {
-    // Find user
-    const user = findByUsername(username);
-    
-    if (!user) {
-      throw new Error('Invalid credentials');
-    }
-    
-    // Verify password (simple string comparison)
-    if (user.password !== password) {
-      throw new Error('Invalid credentials');
-    }
-    
-    // Generate JWT token
-    const token = jwt.sign(
-      { userId: user.userId, username: user.username },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
-    
-    // Return user data and token
-    const { password: _, ...userWithoutPassword } = user;
-    
-    return {
-      user: userWithoutPassword,
-      token
-    };
-  } catch (error) {
-    throw error;
+  // Find user
+  const user = findByUsername(username);
+
+  if (!user) {
+    throw new Error('Invalid credentials');
   }
+
+  // Verify password (simple string comparison)
+  if (user.password !== password) {
+    throw new Error('Invalid credentials');
+  }
+
+  // Generate JWT token
+  const token = jwt.sign(
+    { userId: user.userId, username: user.username },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+  );
+
+  // Return user data and token
+  const { password: _, ...userWithoutPassword } = user;
+
+  return {
+    user: userWithoutPassword,
+    token
+  };
 };

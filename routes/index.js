@@ -16,7 +16,8 @@ router.use('/', tripPlanRoutes);
 router.use('/', dailyPlanRoutes);
 
 // Health check endpoint
-router.get('/health', (req, res) => {
+// Used to be: router.get('/health', (_req, res) => {
+router.get('/health', (_, res) => {
   res.status(200).json({
     success: true,
     message: 'TripTrail API is running',
