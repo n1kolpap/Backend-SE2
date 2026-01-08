@@ -1,20 +1,26 @@
 /**
  * Unit tests for: controllers/dailyPlanController.js
  *
- * This controller is an HTTP-layer orchestrator:
- * - Reads tripId/date/activityId from req.params
- * - Reads authenticated userId from req.user.userId (NOT from req.params.userId)
- * - Calls dailyPlanService functions (synchronous in your implementation)
- * - Uses sendSuccess/sendError for responses
- * - For some endpoints, delegates error mapping to handleTripPlanError(res, error)
+ * This is the UPDATED controller variant you pasted:
+ * - It imports ONLY sendSuccess (no sendError).
+ * - It delegates errors to:
+ *    - handleTripPlanError(res, error) for:
+ *        getDailyPlans, addActivity, addNote
+ *    - handleDailyPlanError(res, error) for:
+ *        removeActivity, markActivityCompleted
  *
- * We test in isolation (no Express server, no real DB):
- * - Mock ../services/dailyPlanService.js
- * - Mock ../utils/responses.js
- * - Mock ../utils/helpers.js (handleTripPlanError)
+ * We test:
+ * - Success paths call the correct dailyPlanService function and then sendSuccess(...)
+ * - Error paths delegate to the correct helper and return its value
+ * - Controller uses authenticated userId from req.user.userId (not req.params.userId)
+ *
+ * Dependencies are mocked using esmock:
+ * - ../services/dailyPlanService.js
+ * - ../utils/responses.js (sendSuccess)
+ * - ../utils/helpers.js (handleTripPlanError, handleDailyPlanError)
  *
  * IMPORTANT:
- * - Adjust MODULE_ID if your controller file lives elsewhere.
+ * - Adjust MODULE_ID if your controller file path differs from controllers/dailyPlanController.js
  */
 
 import test from "ava";
@@ -25,10 +31,12 @@ const MODULE_ID = "../controllers/dailyPlanController.js"; // <-- adjust if need
 
 test.before(async (t) => {
   /**
-   * Mutable "state" allows each test to configure mock behavior.
-   * Defaults intentionally throw so tests must explicitly configure.
+   * Mutable behavior per test:
+   * Each mocked function delegates to an implementation stored in `state`.
+   * This keeps tests focused and avoids re-importing the controller for every test.
    */
   const state = {
+    // Service behaviors
     getTripDailyPlansImpl: () => {
       throw new Error("test did not configure getTripDailyPlansImpl");
     },
@@ -45,33 +53,32 @@ test.before(async (t) => {
       throw new Error("test did not configure addNoteToDailyPlanImpl");
     },
 
-    // handleTripPlanError behavior for delegated error paths
+    // Error handler behaviors
     handleTripPlanErrorImpl: () => ({ kind: "handleTripPlanError-return" }),
+            handleDailyPlanErrorImpl: () => ({ kind: "handleDailyPlanError-return" }),
   };
 
   /**
-   * Call logs to assert exactly what the controller invoked and with what args.
+   * Call logs: capture all interactions for precise assertions.
    */
   const calls = {
-    // service calls
+    // Service calls
     getTripDailyPlans: [],
     addActivityToDailyPlan: [],
     removeActivityFromDailyPlan: [],
     completeActivity: [],
     addNoteToDailyPlan: [],
 
-    // response helper calls
+    // Response helper calls
     sendSuccess: [],
-    sendError: [],
 
-    // helper error handler calls
+    // Error helper calls
     handleTripPlanError: [],
+    handleDailyPlanError: [],
   };
 
   /**
-   * Mock dailyPlanService module.
-   * Controller imports it as: import * as dailyPlanService from '../services/dailyPlanService.js'
-   * So we provide named exports matching those used.
+   * Mock dailyPlanService module (namespace import in controller).
    */
   const dailyPlanServiceMock = {
     getTripDailyPlans: (...args) => {
@@ -97,33 +104,33 @@ test.before(async (t) => {
   };
 
   /**
-   * Mock standardized responses.
-   * We return sentinel objects so we can assert controller returns them.
+   * Mock sendSuccess.
+   * We return a sentinel object to confirm the controller returns it.
    */
   const responsesMock = {
     sendSuccess: (...args) => {
       calls.sendSuccess.push(args);
       return { kind: "sendSuccess-return" };
     },
-    sendError: (...args) => {
-      calls.sendError.push(args);
-      return { kind: "sendError-return" };
-    },
   };
 
   /**
-   * Mock handleTripPlanError(res, error) used by getDailyPlans/addActivity/addNote.
+   * Mock helpers: handleTripPlanError and handleDailyPlanError.
    */
   const helpersMock = {
     handleTripPlanError: (...args) => {
       calls.handleTripPlanError.push(args);
       return state.handleTripPlanErrorImpl(...args);
     },
+    handleDailyPlanError: (...args) => {
+      calls.handleDailyPlanError.push(args);
+      return state.handleDailyPlanErrorImpl(...args);
+    },
   };
 
   /**
-   * Import controller with mocked dependencies injected.
-   * Override keys MUST match the controller's import specifiers exactly.
+   * Import controller with dependency injection.
+   * Override keys must match the import specifiers in the controller file exactly.
    */
   const controller = await esmock(MODULE_ID, {
     "../services/dailyPlanService.js": dailyPlanServiceMock,
@@ -142,7 +149,7 @@ test.beforeEach((t) => {
   // Clear call logs
   for (const k of Object.keys(calls)) calls[k].length = 0;
 
-  // Reset behaviors to strict defaults
+  // Reset service behaviors to strict defaults
   state.getTripDailyPlansImpl = () => {
     throw new Error("test did not configure getTripDailyPlansImpl");
   };
@@ -159,33 +166,35 @@ test.beforeEach((t) => {
     throw new Error("test did not configure addNoteToDailyPlanImpl");
   };
 
-  // Default handler returns a sentinel
+  // Default error handler behaviors (return sentinels)
   state.handleTripPlanErrorImpl = () => ({ kind: "handleTripPlanError-return" });
+  state.handleDailyPlanErrorImpl = () => ({ kind: "handleDailyPlanError-return" });
 });
 
 /* -------------------------------------------------------------------------- */
 /* getDailyPlans                                                              */
 /* -------------------------------------------------------------------------- */
 
-test.serial('getDailyPlans: success -> calls service(tripId, tokenUserId) and sendSuccess(OK, data, "Daily plans retrieved successfully")', async (t) => {
+test.serial('getDailyPlans: success -> calls getTripDailyPlans(tripId, tokenUserId) and sendSuccess(OK, dailyPlans, "Daily plans retrieved successfully")', async (t) => {
   const { controller, state, calls } = t.context;
 
   const dailyPlans = [{ id: "dp1" }, { id: "dp2" }];
-  state.getTripDailyPlansImpl = (tripId, userId) => dailyPlans;
+  state.getTripDailyPlansImpl = () => dailyPlans;
 
   const req = {
     params: { tripId: "t1", userId: "ignored-param" },
-    user: { userId: "u-token" },
+    user: { userId: "u-token" }, // controller should use this
   };
   const res = { __res: true };
 
   const out = await controller.getDailyPlans(req, res);
   t.deepEqual(out, { kind: "sendSuccess-return" });
 
-  // Ensure token userId is used (not req.params.userId)
+  // Ensure correct service invocation
   t.is(calls.getTripDailyPlans.length, 1);
   t.deepEqual(calls.getTripDailyPlans[0], ["t1", "u-token"]);
 
+  // Ensure correct response helper invocation
   t.is(calls.sendSuccess.length, 1);
   t.deepEqual(calls.sendSuccess[0], [
     res,
@@ -194,9 +203,9 @@ test.serial('getDailyPlans: success -> calls service(tripId, tokenUserId) and se
     "Daily plans retrieved successfully",
   ]);
 
-  // No error handling invoked
+  // No error helpers invoked on success
   t.is(calls.handleTripPlanError.length, 0);
-  t.is(calls.sendError.length, 0);
+  t.is(calls.handleDailyPlanError.length, 0);
 });
 
 test.serial("getDailyPlans: service throws -> delegates to handleTripPlanError(res, error) and returns its value", async (t) => {
@@ -206,30 +215,30 @@ test.serial("getDailyPlans: service throws -> delegates to handleTripPlanError(r
     throw new Error("Trip plan not found");
   };
 
-  state.handleTripPlanErrorImpl = (resArg, errArg) => {
-    return { kind: "handled", msg: errArg.message };
-  };
+  state.handleTripPlanErrorImpl = (resArg, errArg) => ({
+    kind: "handled-trip-error",
+    msg: errArg.message,
+  });
 
   const req = { params: { tripId: "t404" }, user: { userId: "u1" } };
   const res = { __res: true };
 
   const out = await controller.getDailyPlans(req, res);
-  t.deepEqual(out, { kind: "handled", msg: "Trip plan not found" });
+  t.deepEqual(out, { kind: "handled-trip-error", msg: "Trip plan not found" });
 
   t.is(calls.handleTripPlanError.length, 1);
   t.is(calls.handleTripPlanError[0][0], res);
   t.is(calls.handleTripPlanError[0][1].message, "Trip plan not found");
 
-  // In delegated error paths, the controller itself should not call sendError/sendSuccess
+  // When delegating, controller itself should not call sendSuccess
   t.is(calls.sendSuccess.length, 0);
-  t.is(calls.sendError.length, 0);
 });
 
 /* -------------------------------------------------------------------------- */
 /* addActivity                                                                */
 /* -------------------------------------------------------------------------- */
 
-test.serial("addActivity: success -> calls addActivityToDailyPlan(tripId, date, body, tokenUserId) and sendSuccess(CREATED, activity, ACTIVITY_ADDED)", async (t) => {
+test.serial("addActivity: success -> calls addActivityToDailyPlan(tripId, date, body, userId) and sendSuccess(CREATED, activity, ACTIVITY_ADDED)", async (t) => {
   const { controller, state, calls } = t.context;
 
   const activity = { activityId: "a1", name: "Museum" };
@@ -237,7 +246,7 @@ test.serial("addActivity: success -> calls addActivityToDailyPlan(tripId, date, 
 
   const body = { name: "Museum", type: "museum" };
   const req = {
-    params: { tripId: "t1", date: "2026-01-10", userId: "ignored-param" },
+    params: { tripId: "t1", date: "2026-02-01", userId: "ignored-param" },
     user: { userId: "u-token" },
     body,
   };
@@ -247,7 +256,7 @@ test.serial("addActivity: success -> calls addActivityToDailyPlan(tripId, date, 
   t.deepEqual(out, { kind: "sendSuccess-return" });
 
   t.is(calls.addActivityToDailyPlan.length, 1);
-  t.deepEqual(calls.addActivityToDailyPlan[0], ["t1", "2026-01-10", body, "u-token"]);
+  t.deepEqual(calls.addActivityToDailyPlan[0], ["t1", "2026-02-01", body, "u-token"]);
 
   t.is(calls.sendSuccess.length, 1);
   t.deepEqual(calls.sendSuccess[0], [
@@ -258,7 +267,7 @@ test.serial("addActivity: success -> calls addActivityToDailyPlan(tripId, date, 
   ]);
 
   t.is(calls.handleTripPlanError.length, 0);
-  t.is(calls.sendError.length, 0);
+  t.is(calls.handleDailyPlanError.length, 0);
 });
 
 test.serial("addActivity: service throws -> delegates to handleTripPlanError(res, error)", async (t) => {
@@ -267,24 +276,24 @@ test.serial("addActivity: service throws -> delegates to handleTripPlanError(res
   state.addActivityToDailyPlanImpl = () => {
     throw new Error("Unauthorized access to trip plan");
   };
-  state.handleTripPlanErrorImpl = () => ({ kind: "handled-addActivity" });
+
+  state.handleTripPlanErrorImpl = () => ({ kind: "handled-addActivity-error" });
 
   const req = {
-    params: { tripId: "t1", date: "2026-01-10" },
+    params: { tripId: "t1", date: "2026-02-01" },
     user: { userId: "u1" },
     body: { name: "X" },
   };
   const res = { __res: true };
 
   const out = await controller.addActivity(req, res);
-  t.deepEqual(out, { kind: "handled-addActivity" });
+  t.deepEqual(out, { kind: "handled-addActivity-error" });
 
   t.is(calls.handleTripPlanError.length, 1);
   t.is(calls.handleTripPlanError[0][0], res);
   t.is(calls.handleTripPlanError[0][1].message, "Unauthorized access to trip plan");
 
   t.is(calls.sendSuccess.length, 0);
-  t.is(calls.sendError.length, 0);
 });
 
 /* -------------------------------------------------------------------------- */
@@ -297,7 +306,7 @@ test.serial("removeActivity: success -> calls removeActivityFromDailyPlan(...) a
   state.removeActivityFromDailyPlanImpl = () => true;
 
   const req = {
-    params: { tripId: "t1", date: "2026-01-10", activityId: "a1" },
+    params: { tripId: "t1", date: "2026-02-01", activityId: "a1" },
     user: { userId: "u1" },
   };
   const res = { __res: true };
@@ -306,7 +315,7 @@ test.serial("removeActivity: success -> calls removeActivityFromDailyPlan(...) a
   t.deepEqual(out, { kind: "sendSuccess-return" });
 
   t.is(calls.removeActivityFromDailyPlan.length, 1);
-  t.deepEqual(calls.removeActivityFromDailyPlan[0], ["t1", "2026-01-10", "a1", "u1"]);
+  t.deepEqual(calls.removeActivityFromDailyPlan[0], ["t1", "2026-02-01", "a1", "u1"]);
 
   t.is(calls.sendSuccess.length, 1);
   t.deepEqual(calls.sendSuccess[0], [
@@ -316,102 +325,38 @@ test.serial("removeActivity: success -> calls removeActivityFromDailyPlan(...) a
     MESSAGES.ACTIVITY_REMOVED,
   ]);
 
-  // removeActivity does NOT use handleTripPlanError
-  t.is(calls.handleTripPlanError.length, 0);
-  t.is(calls.sendError.length, 0);
-});
-
-test.serial("removeActivity: Trip plan not found -> sendError(NOT_FOUND, TRIP_NOT_FOUND)", async (t) => {
-  const { controller, state, calls } = t.context;
-
-  state.removeActivityFromDailyPlanImpl = () => {
-    throw new Error("Trip plan not found");
-  };
-
-  const req = {
-    params: { tripId: "t404", date: "2026-01-10", activityId: "a1" },
-    user: { userId: "u1" },
-  };
-  const res = { __res: true };
-
-  const out = await controller.removeActivity(req, res);
-  t.deepEqual(out, { kind: "sendError-return" });
-
-  t.is(calls.sendError.length, 1);
-  t.deepEqual(calls.sendError[0], [res, HTTP_STATUS.NOT_FOUND, MESSAGES.TRIP_NOT_FOUND]);
-
+  // Success: no error helpers invoked
+  t.is(calls.handleDailyPlanError.length, 0);
   t.is(calls.handleTripPlanError.length, 0);
 });
 
-test.serial("removeActivity: Activity not found -> sendError(NOT_FOUND, ACTIVITY_NOT_FOUND)", async (t) => {
+test.serial("removeActivity: service throws -> delegates to handleDailyPlanError(res, error) and returns its value", async (t) => {
   const { controller, state, calls } = t.context;
 
   state.removeActivityFromDailyPlanImpl = () => {
     throw new Error("Activity not found");
   };
 
+  state.handleDailyPlanErrorImpl = (resArg, errArg) => ({
+    kind: "handled-daily-error",
+    msg: errArg.message,
+  });
+
   const req = {
-    params: { tripId: "t1", date: "2026-01-10", activityId: "missing" },
+    params: { tripId: "t1", date: "2026-02-01", activityId: "missing" },
     user: { userId: "u1" },
   };
   const res = { __res: true };
 
   const out = await controller.removeActivity(req, res);
-  t.deepEqual(out, { kind: "sendError-return" });
+  t.deepEqual(out, { kind: "handled-daily-error", msg: "Activity not found" });
 
-  t.is(calls.sendError.length, 1);
-  t.deepEqual(calls.sendError[0], [res, HTTP_STATUS.NOT_FOUND, MESSAGES.ACTIVITY_NOT_FOUND]);
+  t.is(calls.handleDailyPlanError.length, 1);
+  t.is(calls.handleDailyPlanError[0][0], res);
+  t.is(calls.handleDailyPlanError[0][1].message, "Activity not found");
 
-  t.is(calls.handleTripPlanError.length, 0);
-});
-
-test.serial('removeActivity: Unauthorized access -> sendError(FORBIDDEN, "Access denied")', async (t) => {
-  const { controller, state, calls } = t.context;
-
-  state.removeActivityFromDailyPlanImpl = () => {
-    throw new Error("Unauthorized access to trip plan");
-  };
-
-  const req = {
-    params: { tripId: "t1", date: "2026-01-10", activityId: "a1" },
-    user: { userId: "u1" },
-  };
-  const res = { __res: true };
-
-  const out = await controller.removeActivity(req, res);
-  t.deepEqual(out, { kind: "sendError-return" });
-
-  t.is(calls.sendError.length, 1);
-  t.deepEqual(calls.sendError[0], [res, HTTP_STATUS.FORBIDDEN, "Access denied"]);
-
-  t.is(calls.handleTripPlanError.length, 0);
-});
-
-test.serial("removeActivity: unexpected error -> sendError(500, SERVER_ERROR, error.message)", async (t) => {
-  const { controller, state, calls } = t.context;
-
-  state.removeActivityFromDailyPlanImpl = () => {
-    throw new Error("db exploded");
-  };
-
-  const req = {
-    params: { tripId: "t1", date: "2026-01-10", activityId: "a1" },
-    user: { userId: "u1" },
-  };
-  const res = { __res: true };
-
-  const out = await controller.removeActivity(req, res);
-  t.deepEqual(out, { kind: "sendError-return" });
-
-  t.is(calls.sendError.length, 1);
-  t.deepEqual(calls.sendError[0], [
-    res,
-    HTTP_STATUS.INTERNAL_SERVER_ERROR,
-    MESSAGES.SERVER_ERROR,
-    "db exploded",
-  ]);
-
-  t.is(calls.handleTripPlanError.length, 0);
+  // Delegated errors => controller should not call sendSuccess
+  t.is(calls.sendSuccess.length, 0);
 });
 
 /* -------------------------------------------------------------------------- */
@@ -425,7 +370,7 @@ test.serial("markActivityCompleted: success -> calls completeActivity(...) and s
   state.completeActivityImpl = () => activity;
 
   const req = {
-    params: { tripId: "t1", date: "2026-01-10", activityId: "a1" },
+    params: { tripId: "t1", date: "2026-02-01", activityId: "a1" },
     user: { userId: "u1" },
   };
   const res = { __res: true };
@@ -434,7 +379,7 @@ test.serial("markActivityCompleted: success -> calls completeActivity(...) and s
   t.deepEqual(out, { kind: "sendSuccess-return" });
 
   t.is(calls.completeActivity.length, 1);
-  t.deepEqual(calls.completeActivity[0], ["t1", "2026-01-10", "a1", "u1"]);
+  t.deepEqual(calls.completeActivity[0], ["t1", "2026-02-01", "a1", "u1"]);
 
   t.is(calls.sendSuccess.length, 1);
   t.deepEqual(calls.sendSuccess[0], [
@@ -444,102 +389,33 @@ test.serial("markActivityCompleted: success -> calls completeActivity(...) and s
     MESSAGES.ACTIVITY_COMPLETED,
   ]);
 
-  // markActivityCompleted does NOT use handleTripPlanError
+  t.is(calls.handleDailyPlanError.length, 0);
   t.is(calls.handleTripPlanError.length, 0);
-  t.is(calls.sendError.length, 0);
 });
 
-test.serial("markActivityCompleted: Trip plan not found -> sendError(NOT_FOUND, TRIP_NOT_FOUND)", async (t) => {
+test.serial("markActivityCompleted: service throws -> delegates to handleDailyPlanError(res, error)", async (t) => {
   const { controller, state, calls } = t.context;
 
   state.completeActivityImpl = () => {
     throw new Error("Trip plan not found");
   };
 
+  state.handleDailyPlanErrorImpl = () => ({ kind: "handled-complete-error" });
+
   const req = {
-    params: { tripId: "t404", date: "2026-01-10", activityId: "a1" },
+    params: { tripId: "t404", date: "2026-02-01", activityId: "a1" },
     user: { userId: "u1" },
   };
   const res = { __res: true };
 
   const out = await controller.markActivityCompleted(req, res);
-  t.deepEqual(out, { kind: "sendError-return" });
+  t.deepEqual(out, { kind: "handled-complete-error" });
 
-  t.is(calls.sendError.length, 1);
-  t.deepEqual(calls.sendError[0], [res, HTTP_STATUS.NOT_FOUND, MESSAGES.TRIP_NOT_FOUND]);
+  t.is(calls.handleDailyPlanError.length, 1);
+  t.is(calls.handleDailyPlanError[0][0], res);
+  t.is(calls.handleDailyPlanError[0][1].message, "Trip plan not found");
 
-  t.is(calls.handleTripPlanError.length, 0);
-});
-
-test.serial("markActivityCompleted: Activity not found -> sendError(NOT_FOUND, ACTIVITY_NOT_FOUND)", async (t) => {
-  const { controller, state, calls } = t.context;
-
-  state.completeActivityImpl = () => {
-    throw new Error("Activity not found");
-  };
-
-  const req = {
-    params: { tripId: "t1", date: "2026-01-10", activityId: "missing" },
-    user: { userId: "u1" },
-  };
-  const res = { __res: true };
-
-  const out = await controller.markActivityCompleted(req, res);
-  t.deepEqual(out, { kind: "sendError-return" });
-
-  t.is(calls.sendError.length, 1);
-  t.deepEqual(calls.sendError[0], [res, HTTP_STATUS.NOT_FOUND, MESSAGES.ACTIVITY_NOT_FOUND]);
-
-  t.is(calls.handleTripPlanError.length, 0);
-});
-
-test.serial('markActivityCompleted: Unauthorized access -> sendError(FORBIDDEN, "Access denied")', async (t) => {
-  const { controller, state, calls } = t.context;
-
-  state.completeActivityImpl = () => {
-    throw new Error("Unauthorized access to trip plan");
-  };
-
-  const req = {
-    params: { tripId: "t1", date: "2026-01-10", activityId: "a1" },
-    user: { userId: "u1" },
-  };
-  const res = { __res: true };
-
-  const out = await controller.markActivityCompleted(req, res);
-  t.deepEqual(out, { kind: "sendError-return" });
-
-  t.is(calls.sendError.length, 1);
-  t.deepEqual(calls.sendError[0], [res, HTTP_STATUS.FORBIDDEN, "Access denied"]);
-
-  t.is(calls.handleTripPlanError.length, 0);
-});
-
-test.serial("markActivityCompleted: unexpected error -> sendError(500, SERVER_ERROR, error.message)", async (t) => {
-  const { controller, state, calls } = t.context;
-
-  state.completeActivityImpl = () => {
-    throw new Error("boom");
-  };
-
-  const req = {
-    params: { tripId: "t1", date: "2026-01-10", activityId: "a1" },
-    user: { userId: "u1" },
-  };
-  const res = { __res: true };
-
-  const out = await controller.markActivityCompleted(req, res);
-  t.deepEqual(out, { kind: "sendError-return" });
-
-  t.is(calls.sendError.length, 1);
-  t.deepEqual(calls.sendError[0], [
-    res,
-    HTTP_STATUS.INTERNAL_SERVER_ERROR,
-    MESSAGES.SERVER_ERROR,
-    "boom",
-  ]);
-
-  t.is(calls.handleTripPlanError.length, 0);
+  t.is(calls.sendSuccess.length, 0);
 });
 
 /* -------------------------------------------------------------------------- */
@@ -553,7 +429,7 @@ test.serial("addNote: success -> calls addNoteToDailyPlan(tripId, date, note, us
   state.addNoteToDailyPlanImpl = () => dailyPlan;
 
   const req = {
-    params: { tripId: "t1", date: "2026-01-10" },
+    params: { tripId: "t1", date: "2026-02-01" },
     body: { note: "Bring water" },
     user: { userId: "u1" },
   };
@@ -563,38 +439,42 @@ test.serial("addNote: success -> calls addNoteToDailyPlan(tripId, date, note, us
   t.deepEqual(out, { kind: "sendSuccess-return" });
 
   t.is(calls.addNoteToDailyPlan.length, 1);
-  t.deepEqual(calls.addNoteToDailyPlan[0], ["t1", "2026-01-10", "Bring water", "u1"]);
+  t.deepEqual(calls.addNoteToDailyPlan[0], ["t1", "2026-02-01", "Bring water", "u1"]);
 
   t.is(calls.sendSuccess.length, 1);
-  t.deepEqual(calls.sendSuccess[0], [res, HTTP_STATUS.OK, dailyPlan, MESSAGES.NOTE_ADDED]);
+  t.deepEqual(calls.sendSuccess[0], [
+    res,
+    HTTP_STATUS.OK,
+    dailyPlan,
+    MESSAGES.NOTE_ADDED,
+  ]);
 
   t.is(calls.handleTripPlanError.length, 0);
-  t.is(calls.sendError.length, 0);
+  t.is(calls.handleDailyPlanError.length, 0);
 });
 
 test.serial("addNote: service throws -> delegates to handleTripPlanError(res, error)", async (t) => {
   const { controller, state, calls } = t.context;
 
   state.addNoteToDailyPlanImpl = () => {
-    throw new Error("Trip plan not found");
+    throw new Error("Unauthorized access to trip plan");
   };
 
-  state.handleTripPlanErrorImpl = () => ({ kind: "handled-addNote" });
+  state.handleTripPlanErrorImpl = () => ({ kind: "handled-addNote-error" });
 
   const req = {
-    params: { tripId: "t404", date: "2026-01-10" },
+    params: { tripId: "t1", date: "2026-02-01" },
     body: { note: "X" },
     user: { userId: "u1" },
   };
   const res = { __res: true };
 
   const out = await controller.addNote(req, res);
-  t.deepEqual(out, { kind: "handled-addNote" });
+  t.deepEqual(out, { kind: "handled-addNote-error" });
 
   t.is(calls.handleTripPlanError.length, 1);
   t.is(calls.handleTripPlanError[0][0], res);
-  t.is(calls.handleTripPlanError[0][1].message, "Trip plan not found");
+  t.is(calls.handleTripPlanError[0][1].message, "Unauthorized access to trip plan");
 
   t.is(calls.sendSuccess.length, 0);
-  t.is(calls.sendError.length, 0);
 });

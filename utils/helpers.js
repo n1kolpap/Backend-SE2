@@ -2,6 +2,9 @@
  * Helper utility functions
  */
 
+import { sendError } from '../utils/responses.js';
+import { HTTP_STATUS, MESSAGES } from '../config/constants.js';
+
 /**
  * Generate unique ID
  * @returns {string} Unique identifier
@@ -44,11 +47,11 @@ export const generateDateRange = (startDate, endDate) => {
   const dates = [];
   const start = new Date(startDate);
   const end = new Date(endDate);
-  
+
   for (let dt = new Date(start); dt <= end; dt.setDate(dt.getDate() + 1)) {
     dates.push(formatDate(dt));
   }
-  
+
   return dates;
 };
 
@@ -69,10 +72,6 @@ export const generateDateRange = (startDate, endDate) => {
  * @param {Error} error - Error thrown by service/repository layers
  * @returns {object} Express response (result of sendError)
  */
-
-
-import { sendError } from '../utils/responses.js';
-import { HTTP_STATUS, MESSAGES } from '../config/constants.js';
 
 export const handleTripPlanError = (res, error) => {
   // Defensive read: `error` might be undefined/null in edge cases.
@@ -95,4 +94,29 @@ export const handleTripPlanError = (res, error) => {
     MESSAGES.SERVER_ERROR,
     msg
   );
+};
+
+/**
+ * Centralized error-to-HTTP mapping for Daily Plan operations.
+ *
+ * Built on top of handleTripPlanError:
+ * - Handles Daily Plan specific errors first
+ * - Delegates shared Trip Plan errors (and the generic 500 fallback) to handleTripPlanError
+ *
+ * Use this inside daily plan controllers/services to avoid duplicating the same `catch` logic.
+ *
+ * @param {object} res - Express response object
+ * @param {Error} error - Error thrown by service/repository layers
+ * @returns {object} Express response (result of sendError)
+ */
+export const handleDailyPlanError = (res, error) => {
+  const msg = error?.message;
+
+  // Daily-plan specific case: missing activity within a daily plan
+  if (msg === 'Activity not found') {
+    return sendError(res, HTTP_STATUS.NOT_FOUND, MESSAGES.ACTIVITY_NOT_FOUND);
+  }
+
+  // Delegate common trip-plan errors + fallback 500 to the shared helper
+  return handleTripPlanError(res, error);
 };
