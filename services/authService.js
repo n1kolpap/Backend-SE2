@@ -13,7 +13,6 @@ import { findByUsername, createUser } from '../models/User.js';
  * @throws {Error} If username already exists
  */
 export const registerUser = async (userData) => {
-  try {
     // Check if user already exists
     const existingUser = findByUsername(userData.username);
     
@@ -31,9 +30,6 @@ export const registerUser = async (userData) => {
     // Return user without password
     const { password, ...userWithoutPassword } = user;
     return userWithoutPassword;
-  } catch (error) {
-    throw error;
-  }
 };
 
 /**
@@ -44,7 +40,6 @@ export const registerUser = async (userData) => {
  * @throws {Error} If credentials are invalid
  */
 export const loginUser = async (username, password) => {
-  try {
     // Find user
     const user = findByUsername(username);
     
@@ -71,7 +66,4 @@ export const loginUser = async (username, password) => {
       user: userWithoutPassword,
       token
     };
-  } catch (error) {
-    throw error;
-  }
 };
