@@ -80,6 +80,8 @@ triptrail-api/
 │   ├── authService.js       # Auth business logic
 │   ├── tripPlanService.js   # Trip plan business logic
 │   └── dailyPlanService.js  # Daily plan business logic
+├── tests/                   # Tests (mainly for ava)
+│   └── k6/                  # Tests for k6 only
 ├── utils/
 │   ├── responses.js         # Response helpers
 │   └── helpers.js           # Utility functions
