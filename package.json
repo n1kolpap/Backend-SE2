@@ -11,7 +11,7 @@
   },
   "ava": {
     "files": [
-      "tests/**/*.js"
+      "tests/*.js"
     ]
   },
   "keywords": [
