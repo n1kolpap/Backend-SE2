@@ -11,7 +11,7 @@ import { HTTP_STATUS, MESSAGES } from '../config/constants.js';
  * @param {Object} res - Express response object
  * @param {Function} next - Express next middleware function
  */
-export const errorHandler = (err, req, res, next) => {
+export const errorHandler = (err, _req, res, _next) => {
   console.error('Error:', err);
   
   // Default error
