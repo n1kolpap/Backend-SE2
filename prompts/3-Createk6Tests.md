@@ -43,34 +43,34 @@ DO NOT REPLY YET TO THIS MESSAGE, WAIT FOR MY NEXT
 - Create a load test in js with comments and test a user logging in.
 - Create a spike test in js with comments and test a user logging in.
 - Create a load test in js with comments and test the following in that order:
-A user logs in.
-Creates a new trip plan with this json:
-```json
-{
-  "destination": "Barcelona, Spain",
-  "origin": "New York, USA",
-  "startDate": "2025-08-15",
-  "endDate": "2025-08-20",
-  "budget": 2500,
-  "purpose": "vacation",
-  "interests": ["architecture", "food", "beaches"],
-  "notes": "First time in Spain!"
-}
-```
-Deletes this trip plan
+	1. A user logs in.
+	2. Creates a new trip plan with this json:
+	```json
+	{
+	"destination": "Barcelona, Spain",
+	"origin": "New York, USA",
+	"startDate": "2025-08-15",
+	"endDate": "2025-08-20",
+	"budget": 2500,
+	"purpose": "vacation",
+	"interests": ["architecture", "food", "beaches"],
+	"notes": "First time in Spain!"
+	}
+	```
+	3. Deletes this trip plan
 - Create a spike test in js with comments and test the following in that order:
-A user logs in.
-Creates a new trip plan with this json:
-```json
-{
-  "destination": "Barcelona, Spain",
-  "origin": "New York, USA",
-  "startDate": "2025-08-15",
-  "endDate": "2025-08-20",
-  "budget": 2500,
-  "purpose": "vacation",
-  "interests": ["architecture", "food", "beaches"],
-  "notes": "First time in Spain!"
-}
-```
-Deletes this trip plan
+	1. A user logs in.
+	2. Creates a new trip plan with this json:
+	```json
+	{
+	"destination": "Barcelona, Spain",
+	"origin": "New York, USA",
+	"startDate": "2025-08-15",
+	"endDate": "2025-08-20",
+	"budget": 2500,
+	"purpose": "vacation",
+	"interests": ["architecture", "food", "beaches"],
+	"notes": "First time in Spain!"
+	}
+	```
+	3. Deletes this trip plan
