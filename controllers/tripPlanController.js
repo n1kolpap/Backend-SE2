@@ -6,6 +6,7 @@
 import * as tripPlanService from '../services/tripPlanService.js';
 import { sendSuccess, sendError } from '../utils/responses.js';
 import { HTTP_STATUS, MESSAGES } from '../config/constants.js';
+import { handleTripPlanError } from '../utils/helpers.js';
 
 /**
  * Create new trip plan
@@ -64,28 +65,7 @@ export const getTripPlan = async (req, res) => {
       'Trip plan retrieved successfully'
     );
   } catch (error) {
-    if (error.message === 'Trip plan not found') {
-      return sendError(
-        res,
-        HTTP_STATUS.NOT_FOUND,
-        MESSAGES.TRIP_NOT_FOUND
-      );
-    }
-    
-    if (error.message === 'Unauthorized access to trip plan') {
-      return sendError(
-        res,
-        HTTP_STATUS.FORBIDDEN,
-        'Access denied'
-      );
-    }
-    
-    return sendError(
-      res,
-      HTTP_STATUS.INTERNAL_SERVER_ERROR,
-      MESSAGES.SERVER_ERROR,
-      error.message
-    );
+    return handleTripPlanError(res, error);
   }
 };
 
@@ -109,28 +89,7 @@ export const updateTripPlan = async (req, res) => {
       MESSAGES.TRIP_UPDATED
     );
   } catch (error) {
-    if (error.message === 'Trip plan not found') {
-      return sendError(
-        res,
-        HTTP_STATUS.NOT_FOUND,
-        MESSAGES.TRIP_NOT_FOUND
-      );
-    }
-    
-    if (error.message === 'Unauthorized access to trip plan') {
-      return sendError(
-        res,
-        HTTP_STATUS.FORBIDDEN,
-        'Access denied'
-      );
-    }
-    
-    return sendError(
-      res,
-      HTTP_STATUS.INTERNAL_SERVER_ERROR,
-      MESSAGES.SERVER_ERROR,
-      error.message
-    );
+    return handleTripPlanError(res, error);
   }
 };
 
@@ -154,27 +113,6 @@ export const deleteTripPlan = async (req, res) => {
       MESSAGES.TRIP_DELETED
     );
   } catch (error) {
-    if (error.message === 'Trip plan not found') {
-      return sendError(
-        res,
-        HTTP_STATUS.NOT_FOUND,
-        MESSAGES.TRIP_NOT_FOUND
-      );
-    }
-    
-    if (error.message === 'Unauthorized access to trip plan') {
-      return sendError(
-        res,
-        HTTP_STATUS.FORBIDDEN,
-        'Access denied'
-      );
-    }
-    
-    return sendError(
-      res,
-      HTTP_STATUS.INTERNAL_SERVER_ERROR,
-      MESSAGES.SERVER_ERROR,
-      error.message
-    );
+    return handleTripPlanError(res, error);
   }
 };

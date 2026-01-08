@@ -1,35 +1,39 @@
 /**
  * Unit tests for: controllers/tripPlanController.js
  *
- * We test the controller layer in isolation. That means:
- * - No Express server
- * - No real services
- * - No real sendSuccess/sendError implementation
+ * This controller is a thin HTTP-layer orchestrator:
+ * - reads params/body/user from req
+ * - calls tripPlanService (sync calls in your code)
+ * - returns standardized responses via sendSuccess/sendError
+ * - for most errors it delegates to handleTripPlanError(res, error)
  *
- * We verify the controller’s “contract”:
- * - It reads inputs from req.params / req.user / req.body
- * - It calls the correct tripPlanService function with the correct arguments
- * - It maps outcomes to sendSuccess/sendError with correct status codes/messages
+ * Testing strategy:
+ * - No Express server, no real DB, no real services.
+ * - Use esmock to inject mocks for:
+ *    ../services/tripPlanService.js
+ *    ../utils/responses.js
+ *    ../utils/helpers.js   (handleTripPlanError)
+ * - Use real constants from ../config/constants.js for correctness.
  *
- * This file is aligned to your actual controller implementation:
- * - createTripPlan(req, res)
- * - getTripPlan(req, res)
- * - updateTripPlan(req, res)
- * - deleteTripPlan(req, res)
+ * Notes:
+ * - This is an ESM test file (you already set "type": "module").
+ * - If your controller file path differs, adjust MODULE_ID below.
  */
 
 import test from "ava";
 import esmock from "esmock";
 import { HTTP_STATUS, MESSAGES } from "../config/constants.js";
 
+// Adjust if your controller is in a different location.
 const MODULE_ID = "../controllers/tripPlanController.js";
 
 test.before(async (t) => {
   /**
-   * Mutable behavior per test:
-   * Each service function below will delegate to a configurable implementation.
+   * Mutable behavior for mocks so each test can configure what happens.
+   * This avoids re-importing the module for every test.
    */
   const state = {
+    // Service behaviors
     createNewTripPlanImpl: () => {
       throw new Error("test did not configure createNewTripPlanImpl");
     },
@@ -42,23 +46,34 @@ test.before(async (t) => {
     deleteTripPlanByIdImpl: () => {
       throw new Error("test did not configure deleteTripPlanByIdImpl");
     },
+
+    // Error handler behavior
+    handleTripPlanErrorImpl: () => {
+      throw new Error("test did not configure handleTripPlanErrorImpl");
+    },
   };
 
   /**
-   * Call tracking so we can assert exact interactions.
+   * Call logs: record all interactions so assertions are precise.
    */
   const calls = {
+    // service calls
     createNewTripPlan: [],
     getTripPlanById: [],
     updateExistingTripPlan: [],
     deleteTripPlanById: [],
+
+    // response helper calls
     sendSuccess: [],
     sendError: [],
+
+    // error handler calls
+    handleTripPlanError: [],
   };
 
   /**
-   * Mock tripPlanService (controller imports: `import * as tripPlanService from ...`)
-   * So we expose the same named functions.
+   * Mock tripPlanService (controller imports it as: import * as tripPlanService from ...)
+   * So we provide named exports matching those used by the controller.
    */
   const tripPlanServiceMock = {
     createNewTripPlan: (...args) => {
@@ -81,7 +96,7 @@ test.before(async (t) => {
 
   /**
    * Mock standardized response helpers.
-   * We return “sentinel objects” to confirm the controller returns what these return.
+   * We return sentinel objects so we can assert controller returns them.
    */
   const responsesMock = {
     sendSuccess: (...args) => {
@@ -95,12 +110,24 @@ test.before(async (t) => {
   };
 
   /**
-   * Import the controller with dependency injection.
-   * Override keys must be resolvable from this test file (tests/ folder).
+   * Mock handleTripPlanError(res, error).
+   * This is important because getTripPlan/updateTripPlan/deleteTripPlan delegate errors to it.
+   */
+  const helpersMock = {
+    handleTripPlanError: (...args) => {
+      calls.handleTripPlanError.push(args);
+      return state.handleTripPlanErrorImpl(...args);
+    },
+  };
+
+  /**
+   * Import controller with dependency injection via esmock.
+   * IMPORTANT: override keys must match EXACTLY the import specifiers used inside the controller file.
    */
   const controller = await esmock(MODULE_ID, {
     "../services/tripPlanService.js": tripPlanServiceMock,
     "../utils/responses.js": responsesMock,
+    "../utils/helpers.js": helpersMock,
   });
 
   t.context.state = state;
@@ -111,10 +138,10 @@ test.before(async (t) => {
 test.beforeEach((t) => {
   const { state, calls } = t.context;
 
-  // Clear call logs
+  // Reset call logs
   for (const k of Object.keys(calls)) calls[k].length = 0;
 
-  // Reset all service behavior to “must configure”
+  // Reset mock behaviors (tests must explicitly configure)
   state.createNewTripPlanImpl = () => {
     throw new Error("test did not configure createNewTripPlanImpl");
   };
@@ -127,31 +154,34 @@ test.beforeEach((t) => {
   state.deleteTripPlanByIdImpl = () => {
     throw new Error("test did not configure deleteTripPlanByIdImpl");
   };
+  state.handleTripPlanErrorImpl = () => {
+    return { kind: "handleTripPlanError-return" };
+  };
 });
 
 /* -------------------------------------------------------------------------- */
 /* createTripPlan                                                             */
 /* -------------------------------------------------------------------------- */
 
-test.serial("createTripPlan: forbids creating trip for another user", async (t) => {
+test.serial("createTripPlan: rejects when authenticated user != :userId (403) and does NOT call service", async (t) => {
   const { controller, calls } = t.context;
 
   const req = {
     params: { userId: "u-param" },
-    user: { userId: "u-token" }, // mismatch -> forbidden
+    user: { userId: "u-token" }, // mismatch triggers forbidden
     body: { destination: "Rome" },
   };
   const res = { __res: true };
 
   const out = await controller.createTripPlan(req, res);
 
-  // Controller should return sendError(...)
+  // Controller returns whatever sendError returns
   t.deepEqual(out, { kind: "sendError-return" });
 
-  // Service must NOT be called when forbidden
+  // Must NOT call service
   t.is(calls.createNewTripPlan.length, 0);
 
-  // Must map to the exact controller message
+  // Must send 403 with exact message
   t.is(calls.sendError.length, 1);
   t.deepEqual(calls.sendError[0], [
     res,
@@ -159,19 +189,20 @@ test.serial("createTripPlan: forbids creating trip for another user", async (t) 
     "Cannot create trip plan for another user",
   ]);
 
+  // No success response
   t.is(calls.sendSuccess.length, 0);
 });
 
-test.serial("createTripPlan: success -> service called and sendSuccess(CREATED, trip, TRIP_CREATED)", async (t) => {
+test.serial("createTripPlan: success -> calls createNewTripPlan(userId, body) and sendSuccess(CREATED, trip, TRIP_CREATED)", async (t) => {
   const { controller, state, calls } = t.context;
 
   const trip = { tripId: "t1", userId: "u1", destination: "Rome" };
-  state.createNewTripPlanImpl = (userId, body) => ({ ...trip, ...body, userId });
+  state.createNewTripPlanImpl = (userId, body) => ({ ...trip, userId, ...body });
 
   const req = {
     params: { userId: "u1" },
     user: { userId: "u1" },
-    body: { destination: "Rome", startDate: "2025-01-01", endDate: "2025-01-03" },
+    body: { destination: "Rome", startDate: "2026-01-01", endDate: "2026-01-03" },
   };
   const res = { __res: true };
 
@@ -179,25 +210,27 @@ test.serial("createTripPlan: success -> service called and sendSuccess(CREATED, 
 
   t.deepEqual(out, { kind: "sendSuccess-return" });
 
+  // Service called with correct args
   t.is(calls.createNewTripPlan.length, 1);
   t.deepEqual(calls.createNewTripPlan[0], ["u1", req.body]);
 
+  // Success response called with correct args
   t.is(calls.sendSuccess.length, 1);
   t.deepEqual(calls.sendSuccess[0], [
     res,
     HTTP_STATUS.CREATED,
-    { ...trip, ...req.body, userId: "u1" },
+    { ...trip, userId: "u1", ...req.body },
     MESSAGES.TRIP_CREATED,
   ]);
 
   t.is(calls.sendError.length, 0);
 });
 
-test.serial("createTripPlan: unexpected error -> sendError(500, SERVER_ERROR, error.message)", async (t) => {
+test.serial("createTripPlan: service throws -> sendError(500, SERVER_ERROR, error.message)", async (t) => {
   const { controller, state, calls } = t.context;
 
   state.createNewTripPlanImpl = () => {
-    throw new Error("boom");
+    throw new Error("unexpected failure");
   };
 
   const req = {
@@ -208,7 +241,6 @@ test.serial("createTripPlan: unexpected error -> sendError(500, SERVER_ERROR, er
   const res = { __res: true };
 
   const out = await controller.createTripPlan(req, res);
-
   t.deepEqual(out, { kind: "sendError-return" });
 
   t.is(calls.sendError.length, 1);
@@ -216,8 +248,11 @@ test.serial("createTripPlan: unexpected error -> sendError(500, SERVER_ERROR, er
     res,
     HTTP_STATUS.INTERNAL_SERVER_ERROR,
     MESSAGES.SERVER_ERROR,
-    "boom",
+    "unexpected failure",
   ]);
+
+  // Should not delegate to handleTripPlanError in createTripPlan
+  t.is(calls.handleTripPlanError.length, 0);
 });
 
 /* -------------------------------------------------------------------------- */
@@ -227,106 +262,81 @@ test.serial("createTripPlan: unexpected error -> sendError(500, SERVER_ERROR, er
 test.serial('getTripPlan: success -> sendSuccess(OK, trip, "Trip plan retrieved successfully")', async (t) => {
   const { controller, state, calls } = t.context;
 
-  const trip = { tripId: "t1", userId: "u1", destination: "Athens" };
+  const trip = { tripId: "t1", userId: "u1" };
   state.getTripPlanByIdImpl = (tripId, userId) => ({ ...trip, tripId, userId });
 
-  const req = { params: { tripId: "t1" }, user: { userId: "u1" } };
+  const req = {
+    params: { tripId: "t1", userId: "ignored-param" },
+    user: { userId: "u1" }, // controller uses token userId
+  };
   const res = { __res: true };
 
   const out = await controller.getTripPlan(req, res);
-
   t.deepEqual(out, { kind: "sendSuccess-return" });
 
+  // Service called with (tripId, tokenUserId)
   t.is(calls.getTripPlanById.length, 1);
   t.deepEqual(calls.getTripPlanById[0], ["t1", "u1"]);
 
+  // Correct success response
   t.is(calls.sendSuccess.length, 1);
   t.deepEqual(calls.sendSuccess[0], [
     res,
     HTTP_STATUS.OK,
-    { ...trip, tripId: "t1", userId: "u1" },
+    { tripId: "t1", userId: "u1" },
     "Trip plan retrieved successfully",
   ]);
+
+  // No error handler call
+  t.is(calls.handleTripPlanError.length, 0);
 });
 
-test.serial("getTripPlan: not found -> sendError(NOT_FOUND, TRIP_NOT_FOUND)", async (t) => {
+test.serial("getTripPlan: service throws -> delegates to handleTripPlanError(res, error) and returns its value", async (t) => {
   const { controller, state, calls } = t.context;
 
   state.getTripPlanByIdImpl = () => {
     throw new Error("Trip plan not found");
   };
 
+  // Configure error handler to return a sentinel, so we can assert controller returns it.
+  state.handleTripPlanErrorImpl = (resArg, errArg) => {
+    return { kind: "handleTripPlanError-return", msg: errArg.message };
+  };
+
   const req = { params: { tripId: "t404" }, user: { userId: "u1" } };
   const res = { __res: true };
 
   const out = await controller.getTripPlan(req, res);
+  t.deepEqual(out, { kind: "handleTripPlanError-return", msg: "Trip plan not found" });
 
-  t.deepEqual(out, { kind: "sendError-return" });
+  // Ensure handler called with correct args
+  t.is(calls.handleTripPlanError.length, 1);
+  t.is(calls.handleTripPlanError[0][0], res);
+  t.is(calls.handleTripPlanError[0][1].message, "Trip plan not found");
 
-  t.is(calls.sendError.length, 1);
-  t.deepEqual(calls.sendError[0], [res, HTTP_STATUS.NOT_FOUND, MESSAGES.TRIP_NOT_FOUND]);
-});
-
-test.serial('getTripPlan: unauthorized -> sendError(FORBIDDEN, "Access denied")', async (t) => {
-  const { controller, state, calls } = t.context;
-
-  state.getTripPlanByIdImpl = () => {
-    throw new Error("Unauthorized access to trip plan");
-  };
-
-  const req = { params: { tripId: "t1" }, user: { userId: "u1" } };
-  const res = { __res: true };
-
-  const out = await controller.getTripPlan(req, res);
-
-  t.deepEqual(out, { kind: "sendError-return" });
-
-  t.is(calls.sendError.length, 1);
-  t.deepEqual(calls.sendError[0], [res, HTTP_STATUS.FORBIDDEN, "Access denied"]);
-});
-
-test.serial("getTripPlan: unexpected error -> sendError(500, SERVER_ERROR, error.message)", async (t) => {
-  const { controller, state, calls } = t.context;
-
-  state.getTripPlanByIdImpl = () => {
-    throw new Error("db down");
-  };
-
-  const req = { params: { tripId: "t1" }, user: { userId: "u1" } };
-  const res = { __res: true };
-
-  const out = await controller.getTripPlan(req, res);
-
-  t.deepEqual(out, { kind: "sendError-return" });
-
-  t.is(calls.sendError.length, 1);
-  t.deepEqual(calls.sendError[0], [
-    res,
-    HTTP_STATUS.INTERNAL_SERVER_ERROR,
-    MESSAGES.SERVER_ERROR,
-    "db down",
-  ]);
+  // No sendSuccess/sendError directly (handler is responsible)
+  t.is(calls.sendSuccess.length, 0);
+  t.is(calls.sendError.length, 0);
 });
 
 /* -------------------------------------------------------------------------- */
 /* updateTripPlan                                                             */
 /* -------------------------------------------------------------------------- */
 
-test.serial("updateTripPlan: success -> sendSuccess(OK, trip, TRIP_UPDATED)", async (t) => {
+test.serial("updateTripPlan: success -> calls updateExistingTripPlan(tripId, userId, body) and sendSuccess(OK, trip, TRIP_UPDATED)", async (t) => {
   const { controller, state, calls } = t.context;
 
-  const updated = { tripId: "t1", userId: "u1", name: "Updated" };
-  state.updateExistingTripPlanImpl = (tripId, userId, body) => ({ ...updated, tripId, userId, ...body });
+  const updatedTrip = { tripId: "t1", userId: "u1", name: "Updated" };
+  state.updateExistingTripPlanImpl = (tripId, userId, body) => ({ ...updatedTrip, tripId, userId, ...body });
 
   const req = {
-    params: { tripId: "t1" },
+    params: { tripId: "t1", userId: "ignored-param" },
     user: { userId: "u1" },
     body: { name: "Updated" },
   };
   const res = { __res: true };
 
   const out = await controller.updateTripPlan(req, res);
-
   t.deepEqual(out, { kind: "sendSuccess-return" });
 
   t.is(calls.updateExistingTripPlan.length, 1);
@@ -336,144 +346,84 @@ test.serial("updateTripPlan: success -> sendSuccess(OK, trip, TRIP_UPDATED)", as
   t.deepEqual(calls.sendSuccess[0], [
     res,
     HTTP_STATUS.OK,
-    { ...updated, tripId: "t1", userId: "u1", ...req.body },
+    { ...updatedTrip, tripId: "t1", userId: "u1", ...req.body },
     MESSAGES.TRIP_UPDATED,
   ]);
+
+  t.is(calls.handleTripPlanError.length, 0);
 });
 
-test.serial("updateTripPlan: not found -> sendError(NOT_FOUND, TRIP_NOT_FOUND)", async (t) => {
+test.serial("updateTripPlan: service throws -> delegates to handleTripPlanError(res, error)", async (t) => {
   const { controller, state, calls } = t.context;
 
-  state.updateExistingTripPlanImpl = () => {
-    throw new Error("Trip plan not found");
-  };
-
-  const req = { params: { tripId: "t404" }, user: { userId: "u1" }, body: { name: "X" } };
-  const res = { __res: true };
-
-  const out = await controller.updateTripPlan(req, res);
-
-  t.deepEqual(out, { kind: "sendError-return" });
-  t.is(calls.sendError.length, 1);
-  t.deepEqual(calls.sendError[0], [res, HTTP_STATUS.NOT_FOUND, MESSAGES.TRIP_NOT_FOUND]);
-});
-
-test.serial('updateTripPlan: unauthorized -> sendError(FORBIDDEN, "Access denied")', async (t) => {
-  const { controller, state, calls } = t.context;
-
-  // FIXED: valid function assignment; no stray tokens.
   state.updateExistingTripPlanImpl = () => {
     throw new Error("Unauthorized access to trip plan");
   };
 
-  const req = { params: { tripId: "t1" }, user: { userId: "u1" }, body: { name: "X" } };
-  const res = { __res: true };
-
-  const out = await controller.updateTripPlan(req, res);
-
-  t.deepEqual(out, { kind: "sendError-return" });
-  t.is(calls.sendError.length, 1);
-  t.deepEqual(calls.sendError[0], [res, HTTP_STATUS.FORBIDDEN, "Access denied"]);
-});
-
-test.serial("updateTripPlan: unexpected error -> sendError(500, SERVER_ERROR, error.message)", async (t) => {
-  const { controller, state, calls } = t.context;
-
-  state.updateExistingTripPlanImpl = () => {
-    throw new Error("write failed");
-  };
+  state.handleTripPlanErrorImpl = () => ({ kind: "handled-update-error" });
 
   const req = { params: { tripId: "t1" }, user: { userId: "u1" }, body: { name: "X" } };
   const res = { __res: true };
 
   const out = await controller.updateTripPlan(req, res);
+  t.deepEqual(out, { kind: "handled-update-error" });
 
-  t.deepEqual(out, { kind: "sendError-return" });
-  t.is(calls.sendError.length, 1);
-  t.deepEqual(calls.sendError[0], [
-    res,
-    HTTP_STATUS.INTERNAL_SERVER_ERROR,
-    MESSAGES.SERVER_ERROR,
-    "write failed",
-  ]);
+  t.is(calls.handleTripPlanError.length, 1);
+  t.is(calls.handleTripPlanError[0][0], res);
+  t.is(calls.handleTripPlanError[0][1].message, "Unauthorized access to trip plan");
+
+  t.is(calls.sendSuccess.length, 0);
+  t.is(calls.sendError.length, 0);
 });
 
 /* -------------------------------------------------------------------------- */
 /* deleteTripPlan                                                             */
 /* -------------------------------------------------------------------------- */
 
-test.serial("deleteTripPlan: success -> calls service and sendSuccess(OK, null, TRIP_DELETED)", async (t) => {
+test.serial("deleteTripPlan: success -> calls deleteTripPlanById(tripId, userId) and sendSuccess(OK, null, TRIP_DELETED)", async (t) => {
   const { controller, state, calls } = t.context;
 
-  // Controller ignores return value; success is “no throw”.
   state.deleteTripPlanByIdImpl = () => true;
 
   const req = { params: { tripId: "t1" }, user: { userId: "u1" } };
   const res = { __res: true };
 
   const out = await controller.deleteTripPlan(req, res);
-
   t.deepEqual(out, { kind: "sendSuccess-return" });
 
   t.is(calls.deleteTripPlanById.length, 1);
   t.deepEqual(calls.deleteTripPlanById[0], ["t1", "u1"]);
 
   t.is(calls.sendSuccess.length, 1);
-  t.deepEqual(calls.sendSuccess[0], [res, HTTP_STATUS.OK, null, MESSAGES.TRIP_DELETED]);
+  t.deepEqual(calls.sendSuccess[0], [
+    res,
+    HTTP_STATUS.OK,
+    null,
+    MESSAGES.TRIP_DELETED,
+  ]);
+
+  t.is(calls.handleTripPlanError.length, 0);
 });
 
-test.serial("deleteTripPlan: not found -> sendError(NOT_FOUND, TRIP_NOT_FOUND)", async (t) => {
+test.serial("deleteTripPlan: service throws -> delegates to handleTripPlanError(res, error)", async (t) => {
   const { controller, state, calls } = t.context;
 
   state.deleteTripPlanByIdImpl = () => {
     throw new Error("Trip plan not found");
   };
 
+  state.handleTripPlanErrorImpl = () => ({ kind: "handled-delete-error" });
+
   const req = { params: { tripId: "t404" }, user: { userId: "u1" } };
   const res = { __res: true };
 
   const out = await controller.deleteTripPlan(req, res);
+  t.deepEqual(out, { kind: "handled-delete-error" });
 
-  t.deepEqual(out, { kind: "sendError-return" });
-  t.is(calls.sendError.length, 1);
-  t.deepEqual(calls.sendError[0], [res, HTTP_STATUS.NOT_FOUND, MESSAGES.TRIP_NOT_FOUND]);
-});
+  t.is(calls.handleTripPlanError.length, 1);
+  t.is(calls.handleTripPlanError[0][0], res);
+  t.is(calls.handleTripPlanError[0][1].message, "Trip plan not found");
 
-test.serial('deleteTripPlan: unauthorized -> sendError(FORBIDDEN, "Access denied")', async (t) => {
-  const { controller, state, calls } = t.context;
-
-  state.deleteTripPlanByIdImpl = () => {
-    throw new Error("Unauthorized access to trip plan");
-  };
-
-  const req = { params: { tripId: "t1" }, user: { userId: "u1" } };
-  const res = { __res: true };
-
-  const out = await controller.deleteTripPlan(req, res);
-
-  t.deepEqual(out, { kind: "sendError-return" });
-  t.is(calls.sendError.length, 1);
-  t.deepEqual(calls.sendError[0], [res, HTTP_STATUS.FORBIDDEN, "Access denied"]);
-});
-
-test.serial("deleteTripPlan: unexpected error -> sendError(500, SERVER_ERROR, error.message)", async (t) => {
-  const { controller, state, calls } = t.context;
-
-  state.deleteTripPlanByIdImpl = () => {
-    throw new Error("delete failed");
-  };
-
-  const req = { params: { tripId: "t1" }, user: { userId: "u1" } };
-  const res = { __res: true };
-
-  const out = await controller.deleteTripPlan(req, res);
-
-  t.deepEqual(out, { kind: "sendError-return" });
-  t.is(calls.sendError.length, 1);
-  t.deepEqual(calls.sendError[0], [
-    res,
-    HTTP_STATUS.INTERNAL_SERVER_ERROR,
-    MESSAGES.SERVER_ERROR,
-    "delete failed",
-  ]);
+  t.is(calls.sendSuccess.length, 0);
+  t.is(calls.sendError.length, 0);
 });
