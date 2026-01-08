@@ -7,9 +7,10 @@ on:
   workflow_dispatch:
 
 jobs:
-  # Continuous Integration (builds & tests)
+  # Continuous Integration (builds, unit tests, then k6 against a local server on the runner)
   ci:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -17,22 +18,85 @@ jobs:
       - name: Use Node 22
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
 
       - name: Install deps
         run: npm install
 
-      - name: Run tests
+      # Make sure CI has the env needed for JWT signing (fixes "secretOrPrivateKey must have a value")
+      # NOTE: Add JWT_SECRET in GitHub repo secrets: Settings -> Secrets and variables -> Actions
+      - name: Create .env for CI
+        shell: bash
+        run: |
+          # If you have .env.example, use it; otherwise just create .env
+          # We DO have .env.example, so we DO this
+          if [ -f .env.example ]; then
+            cp .env.example .env
+          else
+            : > .env
+          fi
+
+          # Ensure server binds to the expected port for k6
+          # if ! grep -q '^PORT=' .env; then echo 'PORT=3000' >> .env; fi
+
+          # Inject JWT secret for token signing
+          # echo "JWT_SECRET=${JWT_SECRET}" >> .env
+
+        # env:
+          # JWT_SECRET: ${{ secrets.JWT_SECRET }}
+
+      - name: Run unit tests
         run: npm test
+
+      # Start the API on the GitHub runner so k6 can hit localhost
+      - name: Start API (background)
+        shell: bash
+        run: |
+          # Start your API. Change this to your actual start command if different.
+          # Examples: "npm run dev", "node server.js", etc.
+          nohup npm start > api.log 2>&1 &
+          echo $! > api.pid
+
+          # Wait for the server to listen on port 3000 (max ~60s)
+          for i in {1..60}; do
+            nc -z 127.0.0.1 3000 && echo "API is up" && exit 0
+            sleep 1
+          done
+
+          echo "API did not start in time. Last 120 lines of api.log:"
+          tail -n 120 api.log || true
+          exit 1
 
       # k6 tests
       - name: Setup K6
         uses: grafana/setup-k6-action@v1
-      - name: Run local k6 test
+
+      - name: Run k6 tests (against runner localhost)
         uses: grafana/run-k6-action@v1
+        env:
+          # Point k6 to the API running on the GitHub runner
+          BASE_URL: http://127.0.0.1:3000
         with:
           path: tests/k6/*.js
 
+      - name: Stop API
+        # Always run this step, even if unit tests or k6 fail.
+        # This prevents orphan background processes and makes logs available for debugging.
+        if: always()
+        shell: bash
+        run: |
+          # If we successfully wrote the server PID earlier, terminate that process.
+          # The `|| true` ensures the workflow doesn't fail if the process already exited.
+          if [ -f api.pid ]; then
+            kill "$(cat api.pid)" || true
+          fi
+
+          # Print a small tail of the server logs so failures are diagnosable directly in Actions output
+          # without needing to download artifacts.
+          echo "Last 60 lines of api.log:"
+          tail -n 60 api.log || true
+
+  # Continuous Deployment (unchanged; runs only after CI succeeds on main)
   cd:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
