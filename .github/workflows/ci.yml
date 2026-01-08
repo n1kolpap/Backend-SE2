@@ -25,6 +25,14 @@ jobs:
       - name: Run tests
         run: npm test
 
+      # k6 tests
+      - name: Setup K6
+        uses: grafana/setup-k6-action@v1
+      - name: Run local k6 test
+        uses: grafana/run-k6-action@v1
+        with:
+          path: tests/k6/*.js
+
   cd:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'

@@ -11,7 +11,7 @@
   },
   "ava": {
     "files": [
-      "tests/**/*.js"
+      "tests/*.js"
     ]
   },
   "keywords": [
@@ -32,7 +32,6 @@
     "morgan": "^1.10.0"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.2",
     "ava": "^6.4.1",
     "bcrypt": "^6.0.0",
     "c8": "^10.1.3",
