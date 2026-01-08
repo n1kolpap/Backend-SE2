@@ -1,0 +1,685 @@
+openapi: 3.0.0
+info:
+  title: TripTrail API
+  description: >-
+    OpenAPI 3.0 specification for the REST API of the TripTrail app - Updated to
+    reflect actual implementation
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000/api
+    description: Local development server
+tags:
+  - name: User
+    description: User authentication operations
+  - name: TripPlan
+    description: Trip plan management operations
+  - name: DailyPlan
+    description: Daily plan and activity management operations
+  - name: Utility
+    description: Health check and debug endpoints
+paths:
+  /user:
+    post:
+      tags:
+        - User
+      summary: Create a new user
+      operationId: signUp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserSignup'
+            example:
+              username: new_user
+              password: mypassword123
+              email: user@example.com
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                success: true
+                message: User created successfully
+                data:
+                  userId: 1732567890123-abc123
+                  username: new_user
+                  email: user@example.com
+                  createdAt: '2025-11-28T12:00:00.000Z'
+        '400':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Username already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /user/login:
+    put:
+      tags:
+        - User
+      summary: Log in user
+      operationId: logIn
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLogin'
+            example:
+              username: john_doe
+              password: password123
+      responses:
+        '200':
+          description: User logged in successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+              example:
+                success: true
+                message: User logged in successfully
+                data:
+                  user:
+                    userId: user-1
+                    username: john_doe
+                    email: john@example.com
+                    createdAt: '2025-01-01T00:00:00.000Z'
+                  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /user/{userId}/tripPlan:
+    post:
+      tags:
+        - TripPlan
+      summary: Create a new trip plan
+      operationId: createTripPlan
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: user-1
+      requestBody:
+        description: Trip plan details
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TripPlanCreate'
+            example:
+              destination: Barcelona, Spain
+              origin: New York, USA
+              startDate: '2025-08-15'
+              endDate: '2025-08-20'
+              budget: 2500
+              purpose: vacation
+              interests:
+                - architecture
+                - food
+                - beaches
+              notes: First time in Spain!
+      responses:
+        '201':
+          description: Trip plan created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Validation failed
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - Cannot create trip for another user
+  /user/{userId}/tripPlan/{tripId}:
+    get:
+      tags:
+        - TripPlan
+      summary: Get trip plan by ID
+      operationId: getTripPlan
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Trip plan retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Access denied
+        '404':
+          description: Trip plan not found
+    put:
+      tags:
+        - TripPlan
+      summary: Update trip plan by ID
+      operationId: updateTripPlan
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TripPlanUpdate'
+            example:
+              budget: 3000
+              notes: Increased budget for more activities
+      responses:
+        '200':
+          description: Trip plan updated successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Access denied
+        '404':
+          description: Trip plan not found
+    delete:
+      tags:
+        - TripPlan
+      summary: Delete trip plan
+      operationId: deleteTripPlan
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Trip plan deleted successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Access denied
+        '404':
+          description: Trip plan not found
+  /user/{userId}/tripPlan/{tripId}/dailyPlan:
+    get:
+      tags:
+        - DailyPlan
+      summary: Get all daily plans for a trip
+      operationId: getDailyPlans
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Daily plans retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DailyPlan'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Access denied
+        '404':
+          description: Trip plan not found
+  /user/{userId}/tripPlan/{tripId}/dailyPlan/{date}/activity:
+    post:
+      tags:
+        - DailyPlan
+      summary: Add activity to daily plan
+      operationId: addActivity
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+            format: date
+          example: '2025-08-15'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivityCreate'
+            example:
+              name: Visit Sagrada Familia
+              location: C. de Mallorca, 401, Barcelona
+              time: '10:00'
+              notes: Book tickets online in advance
+      responses:
+        '201':
+          description: Activity added successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Validation failed
+        '401':
+          description: Unauthorized
+        '403':
+          description: Access denied
+  /user/{userId}/tripPlan/{tripId}/dailyPlan/{date}/activity/{activityId}:
+    delete:
+      tags:
+        - DailyPlan
+      summary: Remove activity from daily plan
+      operationId: removeActivity
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: activityId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Activity removed successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Access denied
+        '404':
+          description: Activity not found
+  /user/{userId}/tripPlan/{tripId}/dailyPlan/{date}/activity/{activityId}/completed:
+    post:
+      tags:
+        - DailyPlan
+      summary: Mark activity as completed
+      operationId: markActivityCompleted
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: activityId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Activity marked as completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Access denied
+        '404':
+          description: Activity not found
+  /user/{userId}/tripPlan/{tripId}/dailyPlan/{date}/note:
+    post:
+      tags:
+        - DailyPlan
+      summary: Add note to daily plan
+      operationId: addNote
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+            format: date
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - note
+              properties:
+                note:
+                  type: string
+            example:
+              note: Weather looks great! Don't forget sunscreen.
+      responses:
+        '200':
+          description: Note added successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Validation failed
+        '401':
+          description: Unauthorized
+        '403':
+          description: Access denied
+  /health:
+    get:
+      tags:
+        - Utility
+      summary: Health check endpoint
+      operationId: healthCheck
+      responses:
+        '200':
+          description: API is running
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+              example:
+                success: true
+                message: TripTrail API is running
+                timestamp: '2025-11-28T12:00:00.000Z'
+  /debug/users:
+    get:
+      tags:
+        - Utility
+      summary: Get available test users (DEBUG ONLY)
+      operationId: debugUsers
+      responses:
+        '200':
+          description: Available test users
+          content:
+            application/json:
+              schema:
+                type: object
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    UserSignup:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 3
+        password:
+          type: string
+          minLength: 6
+        email:
+          type: string
+          format: email
+    UserLogin:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+    TripPlanCreate:
+      type: object
+      required:
+        - destination
+        - startDate
+        - endDate
+      properties:
+        destination:
+          type: string
+        origin:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        budget:
+          type: number
+          format: float
+          minimum: 0
+        purpose:
+          type: string
+        interests:
+          type: array
+          items:
+            type: string
+        notes:
+          type: string
+        collaborators:
+          type: array
+          items:
+            type: string
+    TripPlanUpdate:
+      type: object
+      properties:
+        destination:
+          type: string
+        origin:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        budget:
+          type: number
+          format: float
+        purpose:
+          type: string
+        interests:
+          type: array
+          items:
+            type: string
+        notes:
+          type: string
+        collaborators:
+          type: array
+          items:
+            type: string
+    DailyPlan:
+      type: object
+      properties:
+        dailyPlanId:
+          type: string
+        tripId:
+          type: string
+        date:
+          type: string
+          format: date
+        activities:
+          type: array
+          items:
+            $ref: '#/components/schemas/Activity'
+        notes:
+          type: string
+    Activity:
+      type: object
+      properties:
+        activityId:
+          type: string
+        name:
+          type: string
+        location:
+          type: string
+        time:
+          type: string
+        completed:
+          type: boolean
+        notes:
+          type: string
+    ActivityCreate:
+      type: object
+      required:
+        - name
+        - time
+      properties:
+        name:
+          type: string
+        location:
+          type: string
+        time:
+          type: string
+        notes:
+          type: string
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        error:
+          type: object
+    LoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            user:
+              type: object
+              properties:
+                userId:
+                  type: string
+                username:
+                  type: string
+                email:
+                  type: string
+                createdAt:
+                  type: string
+                  format: date-time
+            token:
+              type: string

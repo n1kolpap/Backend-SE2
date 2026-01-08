@@ -22,3 +22,9 @@ yarn-debug.log*
 yarn-error.log*
 *.log*
 /dist
+
+*.kate-swp
+
+
+#c8 output
+/coverage
