@@ -4,8 +4,9 @@
  */
 
 import * as dailyPlanService from '../services/dailyPlanService.js';
-import { sendSuccess, sendError } from '../utils/responses.js';
+import { sendSuccess } from '../utils/responses.js';
 import { HTTP_STATUS, MESSAGES } from '../config/constants.js';
+import { handleTripPlanError, handleDailyPlanError } from '../utils/helpers.js';
 
 /**
  * Get all daily plans for a trip
@@ -27,28 +28,7 @@ export const getDailyPlans = async (req, res) => {
       'Daily plans retrieved successfully'
     );
   } catch (error) {
-    if (error.message === 'Trip plan not found') {
-      return sendError(
-        res,
-        HTTP_STATUS.NOT_FOUND,
-        MESSAGES.TRIP_NOT_FOUND
-      );
-    }
-    
-    if (error.message === 'Unauthorized access to trip plan') {
-      return sendError(
-        res,
-        HTTP_STATUS.FORBIDDEN,
-        'Access denied'
-      );
-    }
-    
-    return sendError(
-      res,
-      HTTP_STATUS.INTERNAL_SERVER_ERROR,
-      MESSAGES.SERVER_ERROR,
-      error.message
-    );
+    return handleTripPlanError(res, error);
   }
 };
 
@@ -77,28 +57,7 @@ export const addActivity = async (req, res) => {
       MESSAGES.ACTIVITY_ADDED
     );
   } catch (error) {
-    if (error.message === 'Trip plan not found') {
-      return sendError(
-        res,
-        HTTP_STATUS.NOT_FOUND,
-        MESSAGES.TRIP_NOT_FOUND
-      );
-    }
-    
-    if (error.message === 'Unauthorized access to trip plan') {
-      return sendError(
-        res,
-        HTTP_STATUS.FORBIDDEN,
-        'Access denied'
-      );
-    }
-    
-    return sendError(
-      res,
-      HTTP_STATUS.INTERNAL_SERVER_ERROR,
-      MESSAGES.SERVER_ERROR,
-      error.message
-    );
+    return handleTripPlanError(res, error);
   }
 };
 
@@ -122,36 +81,7 @@ export const removeActivity = async (req, res) => {
       MESSAGES.ACTIVITY_REMOVED
     );
   } catch (error) {
-    if (error.message === 'Trip plan not found') {
-      return sendError(
-        res,
-        HTTP_STATUS.NOT_FOUND,
-        MESSAGES.TRIP_NOT_FOUND
-      );
-    }
-    
-    if (error.message === 'Activity not found') {
-      return sendError(
-        res,
-        HTTP_STATUS.NOT_FOUND,
-        MESSAGES.ACTIVITY_NOT_FOUND
-      );
-    }
-    
-    if (error.message === 'Unauthorized access to trip plan') {
-      return sendError(
-        res,
-        HTTP_STATUS.FORBIDDEN,
-        'Access denied'
-      );
-    }
-    
-    return sendError(
-      res,
-      HTTP_STATUS.INTERNAL_SERVER_ERROR,
-      MESSAGES.SERVER_ERROR,
-      error.message
-    );
+    return handleDailyPlanError(res, error);
   }
 };
 
@@ -175,36 +105,7 @@ export const markActivityCompleted = async (req, res) => {
       MESSAGES.ACTIVITY_COMPLETED
     );
   } catch (error) {
-    if (error.message === 'Trip plan not found') {
-      return sendError(
-        res,
-        HTTP_STATUS.NOT_FOUND,
-        MESSAGES.TRIP_NOT_FOUND
-      );
-    }
-    
-    if (error.message === 'Activity not found') {
-      return sendError(
-        res,
-        HTTP_STATUS.NOT_FOUND,
-        MESSAGES.ACTIVITY_NOT_FOUND
-      );
-    }
-    
-    if (error.message === 'Unauthorized access to trip plan') {
-      return sendError(
-        res,
-        HTTP_STATUS.FORBIDDEN,
-        'Access denied'
-      );
-    }
-    
-    return sendError(
-      res,
-      HTTP_STATUS.INTERNAL_SERVER_ERROR,
-      MESSAGES.SERVER_ERROR,
-      error.message
-    );
+    return handleDailyPlanError(res, error);
   }
 };
 
@@ -229,27 +130,6 @@ export const addNote = async (req, res) => {
       MESSAGES.NOTE_ADDED
     );
   } catch (error) {
-    if (error.message === 'Trip plan not found') {
-      return sendError(
-        res,
-        HTTP_STATUS.NOT_FOUND,
-        MESSAGES.TRIP_NOT_FOUND
-      );
-    }
-    
-    if (error.message === 'Unauthorized access to trip plan') {
-      return sendError(
-        res,
-        HTTP_STATUS.FORBIDDEN,
-        'Access denied'
-      );
-    }
-    
-    return sendError(
-      res,
-      HTTP_STATUS.INTERNAL_SERVER_ERROR,
-      MESSAGES.SERVER_ERROR,
-      error.message
-    );
+    return handleTripPlanError(res, error);
   }
 };
