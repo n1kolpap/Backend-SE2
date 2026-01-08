@@ -65,6 +65,8 @@ export const createNewTripPlan = (userId, tripData) => {
  * @throws {Error} If trip not found or unauthorized
  */
 export const updateExistingTripPlan = (tripId, userId, updateData) => {
+    getTripPlanById(tripId, userId);
+
     const updatedTrip = TripPlan.updateTripPlan(tripId, updateData);
     
     if (!updatedTrip) {
@@ -82,6 +84,8 @@ export const updateExistingTripPlan = (tripId, userId, updateData) => {
  * @throws {Error} If trip not found or unauthorized
  */
 export const deleteTripPlanById = (tripId, userId) => {
+  getTripPlanById(tripId, userId);
+
   const success = TripPlan.deleteTripPlan(tripId);
 
   if (!success) {
