@@ -40,30 +40,30 @@ export const registerUser = async (userData) => {
  * @throws {Error} If credentials are invalid
  */
 export const loginUser = async (username, password) => {
-    // Find user
-    const user = findByUsername(username);
-    
-    if (!user) {
-      throw new Error('Invalid credentials');
-    }
-    
-    // Verify password (simple string comparison)
-    if (user.password !== password) {
-      throw new Error('Invalid credentials');
-    }
-    
-    // Generate JWT token
-    const token = jwt.sign(
-      { userId: user.userId, username: user.username },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
-    
-    // Return user data and token
-    const { password: _, ...userWithoutPassword } = user;
-    
-    return {
-      user: userWithoutPassword,
-      token
-    };
+  // Find user
+  const user = findByUsername(username);
+
+  if (!user) {
+    throw new Error('Invalid credentials');
+  }
+
+  // Verify password (simple string comparison)
+  if (user.password !== password) {
+    throw new Error('Invalid credentials');
+  }
+
+  // Generate JWT token
+  const token = jwt.sign(
+    { userId: user.userId, username: user.username },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+  );
+
+  // Return user data and token
+  const { password: _, ...userWithoutPassword } = user;
+
+  return {
+    user: userWithoutPassword,
+    token
+  };
 };
