@@ -44,7 +44,7 @@ DO NOT REPLY YET TO THIS MESSAGE, WAIT FOR MY NEXT
 - Create a load test in js with comments and test a user logging in.
 - Create a spike test in js with comments and test a user logging in.
 - Create a load test in js with comments and test the following in that order:
-	1. A user logs in.
+	1. A user logs in
 	2. Creates a new trip plan with this json:
 	```json
 	{
@@ -60,7 +60,7 @@ DO NOT REPLY YET TO THIS MESSAGE, WAIT FOR MY NEXT
 	```
 	3. Deletes this trip plan
 - Create a spike test in js with comments and test the following in that order:
-	1. A user logs in.
+	1. A user logs in
 	2. Creates a new trip plan with this json:
 	```json
 	{

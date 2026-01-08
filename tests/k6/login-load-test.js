@@ -1,13 +1,14 @@
 /**
- * k6 Load test: Login (TripTrail)
+ * k6 Load test: Health ping + Login (TripTrail)
  *
  * Fix applied:
  * - Removed `maxDuration` (your k6 version does not recognize it).
  * - Still enforces a “whole test max duration” by *constructing stages* so that:
  *     total ≈ MAX_TEST_DURATION
  *
- * Default route (per README):
- * - PUT /api/user/login
+ * Flow per VU iteration (in this exact order):
+ *  1) Ping health endpoint (GET /api/health)
+ *  2) Log in (PUT /api/user/login)
  *
  * Run:
  *   k6 run load_login.test.js
@@ -140,9 +141,27 @@ export const options = {
 };
 
 /* -----------------------------
- * VU iteration: perform login
+ * VU iteration: health ping -> login
  * ----------------------------- */
 export default function () {
+	/* -----------------------------
+	 * 0) HEALTH PING
+	 * ----------------------------- */
+	const healthUrl = `${BASE_URL}/api/health`;
+
+	const healthRes = http.get(healthUrl, {
+		headers: { Accept: "application/json" },
+		tags: { name: "GET /api/health" },
+	});
+
+	check(healthRes, {
+		"Health status is 200": (r) => r.status === 200,
+		  "Health status is 2xx": (r) => Math.floor(r.status / 100) === 2,
+	});
+
+	/* -----------------------------
+	 * 1) LOGIN
+	 * ----------------------------- */
 	const url = `${BASE_URL}/api/user/login`;
 
 	const payload = JSON.stringify({
