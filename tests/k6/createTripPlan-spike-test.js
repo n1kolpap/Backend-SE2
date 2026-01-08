@@ -35,7 +35,7 @@ import { check, sleep } from "k6";
  * Tunable variables (env-driven)
  * ----------------------------- */
 const BASE_URL = __ENV.BASE_URL || "http://localhost:3000";
-const MAX_VUS = Number(__ENV.MAX_VUS || 512);
+const MAX_VUS = Number(__ENV.MAX_VUS || 496);
 
 // “Max duration during a ramping stage”
 const RAMP_STAGE_DURATION = __ENV.RAMP_STAGE_DURATION || "10s";
