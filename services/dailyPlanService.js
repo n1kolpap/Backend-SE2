@@ -31,12 +31,8 @@ const verifyTripOwnership = (tripId, userId) => {
  * @returns {Array} Array of daily plans
  */
 export const getTripDailyPlans = (tripId, userId) => {
-  try {
     verifyTripOwnership(tripId, userId);
     return DailyPlan.findByTripId(tripId);
-  } catch (error) {
-    throw error;
-  }
 };
 
 /**
@@ -47,7 +43,6 @@ export const getTripDailyPlans = (tripId, userId) => {
  * @returns {Object} Daily plan
  */
 export const getDailyPlanByDate = (tripId, date, userId) => {
-  try {
     verifyTripOwnership(tripId, userId);
     
     const dailyPlan = DailyPlan.findByTripAndDate(tripId, date);
@@ -57,9 +52,6 @@ export const getDailyPlanByDate = (tripId, date, userId) => {
     }
     
     return dailyPlan;
-  } catch (error) {
-    throw error;
-  }
 };
 
 /**
@@ -71,14 +63,10 @@ export const getDailyPlanByDate = (tripId, date, userId) => {
  * @returns {Object} Added activity
  */
 export const addActivityToDailyPlan = (tripId, date, activityData, userId) => {
-  try {
     verifyTripOwnership(tripId, userId);
     
     const activity = DailyPlan.addActivity(tripId, date, activityData);
     return activity;
-  } catch (error) {
-    throw error;
-  }
 };
 
 /**
@@ -90,7 +78,6 @@ export const addActivityToDailyPlan = (tripId, date, activityData, userId) => {
  * @returns {boolean} Success status
  */
 export const removeActivityFromDailyPlan = (tripId, date, activityId, userId) => {
-  try {
     verifyTripOwnership(tripId, userId);
     
     const success = DailyPlan.removeActivity(tripId, date, activityId);
@@ -100,9 +87,6 @@ export const removeActivityFromDailyPlan = (tripId, date, activityId, userId) =>
     }
     
     return success;
-  } catch (error) {
-    throw error;
-  }
 };
 
 /**
@@ -114,7 +98,6 @@ export const removeActivityFromDailyPlan = (tripId, date, activityId, userId) =>
  * @returns {Object} Updated activity
  */
 export const completeActivity = (tripId, date, activityId, userId) => {
-  try {
     verifyTripOwnership(tripId, userId);
     
     const activity = DailyPlan.markActivityCompleted(tripId, date, activityId);
@@ -124,9 +107,6 @@ export const completeActivity = (tripId, date, activityId, userId) => {
     }
     
     return activity;
-  } catch (error) {
-    throw error;
-  }
 };
 
 /**
@@ -138,12 +118,8 @@ export const completeActivity = (tripId, date, activityId, userId) => {
  * @returns {Object} Updated daily plan
  */
 export const addNoteToDailyPlan = (tripId, date, noteText, userId) => {
-  try {
     verifyTripOwnership(tripId, userId);
     
     const dailyPlan = DailyPlan.addNote(tripId, date, noteText);
     return dailyPlan;
-  } catch (error) {
-    throw error;
-  }
 };
