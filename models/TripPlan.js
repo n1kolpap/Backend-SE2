@@ -3,7 +3,8 @@
  * In-memory trip plan data structure
  */
 
-import { generateId, generateDateRange } from '../utils/helpers.js';
+// Was: import { generateId, generateDateRange } from '../utils/helpers.js';
+import { generateId } from '../utils/helpers.js';
 
 // Mock trip plans database
 export const tripPlans = [
