@@ -77,26 +77,25 @@
  * - If you care about sustained capacity, emphasize a longer hold phase.
  * ========================================================================== */
 
-
 /**
  * Get an env object regardless of runtime:
  * - k6: global __ENV
  * - Node: process.env
  */
 const getEnv = () => {
-	// k6 provides __ENV as a global; using typeof avoids ReferenceError in Node.
-	// eslint-disable-next-line no-undef
-	if (typeof __ENV !== "undefined") return __ENV;
+  // k6 provides __ENV as a global; using typeof avoids ReferenceError in Node.
+  // eslint-disable-next-line no-undef
+  if (typeof __ENV !== "undefined") return __ENV;
 
-	// Node provides process.env
-	if (typeof process !== "undefined" && process?.env) return process.env;
+  // Node provides process.env
+  if (typeof process !== "undefined" && process?.env) return process.env;
 
-	return {};
+  return {};
 };
 
 const toNumber = (value, fallback) => {
-	const n = Number(value);
-	return Number.isFinite(n) ? n : fallback;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
 };
 
 /**
@@ -110,34 +109,44 @@ const toNumber = (value, fallback) => {
  * @param {object} defaults per-test defaults
  */
 export const getK6Config = (defaults = {}) => {
-	const env = getEnv();
+  const env = getEnv();
 
-	const BASE_URL = env.BASE_URL || defaults.BASE_URL || "http://localhost:3000";
-	const MAX_VUS = toNumber(env.MAX_VUS ?? defaults.MAX_VUS, defaults.MAX_VUS ?? 50);
+  const BASE_URL = env.BASE_URL || defaults.BASE_URL || "http://localhost:3000";
+  const MAX_VUS = toNumber(env.MAX_VUS ?? defaults.MAX_VUS, defaults.MAX_VUS ?? 50);
 
-	const RAMP_STAGE_DURATION =
-	env.RAMP_STAGE_DURATION || defaults.RAMP_STAGE_DURATION || "30s";
-	const MAX_TEST_DURATION = env.MAX_TEST_DURATION || defaults.MAX_TEST_DURATION || "2m";
+  const RAMP_STAGE_DURATION =
+  env.RAMP_STAGE_DURATION || defaults.RAMP_STAGE_DURATION || "30s";
+  const MAX_TEST_DURATION =
+  env.MAX_TEST_DURATION || defaults.MAX_TEST_DURATION || "2m";
 
-	const USERNAME = env.USERNAME || defaults.USERNAME || "john_doe";
-	const PASSWORD = env.PASSWORD || defaults.PASSWORD || "password123";
+  const USERNAME = env.USERNAME || defaults.USERNAME || "john_doe";
+  const PASSWORD = env.PASSWORD || defaults.PASSWORD || "password123";
 
-	// Threshold variables (names preserved from your scripts)
-	const p95variable = toNumber(env.P95 ?? defaults.p95variable, defaults.p95variable ?? 800);
-	const p99variable = toNumber(env.P99 ?? defaults.p99variable, defaults.p99variable ?? 1200);
-	const rateVariable = toNumber(env.RATE ?? defaults.rateVariable, defaults.rateVariable ?? 0.01);
+  // Threshold variables (names preserved from your scripts)
+  const p95variable = toNumber(
+    env.P95 ?? defaults.p95variable,
+    defaults.p95variable ?? 800
+  );
+  const p99variable = toNumber(
+    env.P99 ?? defaults.p99variable,
+    defaults.p99variable ?? 1200
+  );
+  const rateVariable = toNumber(
+    env.RATE ?? defaults.rateVariable,
+    defaults.rateVariable ?? 0.01
+  );
 
-	return {
-		BASE_URL,
-		MAX_VUS,
-		RAMP_STAGE_DURATION,
-		MAX_TEST_DURATION,
-		USERNAME,
-		PASSWORD,
-		p95variable,
-		p99variable,
-		rateVariable,
-	};
+  return {
+    BASE_URL,
+    MAX_VUS,
+    RAMP_STAGE_DURATION,
+    MAX_TEST_DURATION,
+    USERNAME,
+    PASSWORD,
+    p95variable,
+    p99variable,
+    rateVariable,
+  };
 };
 
 /**
@@ -153,29 +162,29 @@ export const getK6Config = (defaults = {}) => {
  * - Returned value is a number (can be fractional if "ms" is used).
  */
 export const parseDurationToSeconds = (d) => {
-	const str = String(d).trim();
-	const match = str.match(/^(\d+(?:\.\d+)?)(ms|s|m|h)$/i);
-	if (!match) {
-		// Safe fallback: treat as seconds if format is unexpected
-		const asNum = Number(str);
-		return Number.isFinite(asNum) ? asNum : 0;
-	}
-	const value = Number(match[1]);
-	const unit = match[2].toLowerCase();
+  const str = String(d).trim();
+  const match = str.match(/^(\d+(?:\.\d+)?)(ms|s|m|h)$/i);
+  if (!match) {
+    // Safe fallback: treat as seconds if format is unexpected
+    const asNum = Number(str);
+    return Number.isFinite(asNum) ? asNum : 0;
+  }
+  const value = Number(match[1]);
+  const unit = match[2].toLowerCase();
 
-	if (unit === "ms") return value / 1000;
-	if (unit === "s") return value;
-	if (unit === "m") return value * 60;
-	if (unit === "h") return value * 3600;
-	return 0;
+  if (unit === "ms") return value / 1000;
+  if (unit === "s") return value;
+  if (unit === "m") return value * 60;
+  if (unit === "h") return value * 3600;
+  return 0;
 };
 
 /**
  * Convert seconds to a k6 duration string (seconds precision).
  */
 export const secondsToK6Duration = (sec) => {
-	const s = Math.max(0, Math.floor(sec));
-	return `${s}s`;
+  const s = Math.max(0, Math.floor(sec));
+  return `${s}s`;
 };
 
 /**
@@ -196,22 +205,22 @@ export const secondsToK6Duration = (sec) => {
  * then do NOT use buildSpikeStages(); use buildMultiSpikeStages() instead.
  */
 const buildRampingStages = ({ maxTestDuration, rampStageDuration, maxVUs }) => {
-	const totalSec = parseDurationToSeconds(maxTestDuration);
-	const rampMaxSec = parseDurationToSeconds(rampStageDuration);
+  const totalSec = parseDurationToSeconds(maxTestDuration);
+  const rampMaxSec = parseDurationToSeconds(rampStageDuration);
 
-	// Ensure ramp-up + ramp-down fit inside total duration
-	const effectiveRampSec = Math.max(0, Math.min(rampMaxSec, totalSec / 2));
-	const holdSec = Math.max(0, totalSec - 2 * effectiveRampSec);
+  // Ensure ramp-up + ramp-down fit inside total duration
+  const effectiveRampSec = Math.max(0, Math.min(rampMaxSec, totalSec / 2));
+  const holdSec = Math.max(0, totalSec - 2 * effectiveRampSec);
 
-	const stages = [];
-	stages.push({ duration: secondsToK6Duration(effectiveRampSec), target: maxVUs });
+  const stages = [];
+  stages.push({ duration: secondsToK6Duration(effectiveRampSec), target: maxVUs });
 
-	if (holdSec > 0) {
-		stages.push({ duration: secondsToK6Duration(holdSec), target: maxVUs });
-	}
+  if (holdSec > 0) {
+    stages.push({ duration: secondsToK6Duration(holdSec), target: maxVUs });
+  }
 
-	stages.push({ duration: secondsToK6Duration(effectiveRampSec), target: 0 });
-	return stages;
+  stages.push({ duration: secondsToK6Duration(effectiveRampSec), target: 0 });
+  return stages;
 };
 
 /**
@@ -229,21 +238,21 @@ export const buildSpikeStages = (args) => buildRampingStages(args);
  * Thresholds (variable-driven). Abort on p95 or failure-rate breaches.
  */
 export const buildK6Thresholds = ({ p95variable, p99variable, rateVariable }) => ({
-	http_req_duration: [
-		{ threshold: `p(95)<${p95variable}`, abortOnFail: true },
-																				  `p(99)<${p99variable}`,
-	],
-	http_req_failed: [{ threshold: `rate<${rateVariable}`, abortOnFail: true }],
+  http_req_duration: [
+    { threshold: `p(95)<${p95variable}`, abortOnFail: true },
+                                                                                  `p(99)<${p99variable}`,
+  ],
+  http_req_failed: [{ threshold: `rate<${rateVariable}`, abortOnFail: true }],
 });
 
 export const is2xxStatus = (status) => Math.floor(Number(status) / 100) === 2;
 
 const safeJson = (res) => {
-	try {
-		return res.json();
-	} catch (_) {
-		return null;
-	}
+  try {
+    return res.json();
+  } catch (_) {
+    return null;
+  }
 };
 
 /**
@@ -257,6 +266,49 @@ json?.data?.trip?.id ||
 json?.data?.tripPlan?.tripId ||
 json?.data?.tripPlan?.id ||
 null;
+
+/**
+ * Build multiple spikes (repeated up/hold/down patterns) within a single test.
+ *
+ * @param {object} args
+ * @param {number} args.maxVUs - peak VUs for each spike
+ * @param {number} args.spikes - how many spikes to run
+ * @param {string} args.rampUp - duration for ramp up (e.g. "5s")
+ * @param {string} args.hold - duration to hold at peak (e.g. "10s")
+ * @param {string} args.rampDown - duration for ramp down (e.g. "5s")
+ * @param {string} [args.rest="0s"] - rest at 0 VUs between spikes (e.g. "10s")
+ * @returns {Array<{duration:string,target:number}>} k6 stages
+ */
+export const buildMultiSpikeStages = ({
+  maxVUs,
+  spikes,
+  rampUp,
+  hold,
+  rampDown,
+  rest = "0s",
+}) => {
+  const stages = [];
+
+  for (let i = 0; i < spikes; i += 1) {
+    // Spike up
+    stages.push({ duration: rampUp, target: maxVUs });
+
+    // Hold at peak
+    if (hold !== "0s") {
+      stages.push({ duration: hold, target: maxVUs });
+    }
+
+    // Spike down
+    stages.push({ duration: rampDown, target: 0 });
+
+    // Rest at 0 between spikes (except after the last one)
+    if (rest !== "0s" && i < spikes - 1) {
+      stages.push({ duration: rest, target: 0 });
+    }
+  }
+
+  return stages;
+};
 
 /* --------------------------------------------------------------------------
  * FLOW HELPERS: what they guarantee / what they do NOT
@@ -283,17 +335,17 @@ null;
  * @returns {{ res: any, ok: boolean }}
  */
 export const k6PingHealth = ({ http, check, baseUrl }) => {
-	const res = http.get(`${baseUrl}/api/health`, {
-		headers: { Accept: "application/json" },
-		tags: { name: "GET /api/health" },
-	});
+  const res = http.get(`${baseUrl}/api/health`, {
+    headers: { Accept: "application/json" },
+    tags: { name: "GET /api/health" },
+  });
 
-	check(res, {
-		"Health status is 200": (r) => r.status === 200,
-		  "Health status is 2xx": (r) => is2xxStatus(r.status),
-	});
+  check(res, {
+    "Health status is 200": (r) => r.status === 200,
+        "Health status is 2xx": (r) => is2xxStatus(r.status),
+  });
 
-	return { res, ok: is2xxStatus(res.status) };
+  return { res, ok: is2xxStatus(res.status) };
 };
 
 /**
@@ -304,64 +356,64 @@ export const k6PingHealth = ({ http, check, baseUrl }) => {
  * @returns {{ res:any, json:any, token:string|null, userId:string|null, ok:boolean }}
  */
 export const k6Login = ({
-	http,
-	check,
-	baseUrl,
-	username,
-	password,
-	requireUserId = false,
-	labels = {},
+  http,
+  check,
+  baseUrl,
+  username,
+  password,
+  requireUserId = false,
+  labels = {},
 }) => {
-	const res = http.put(
-		`${baseUrl}/api/user/login`,
-		JSON.stringify({ username, password }),
-						 {
-							 headers: { "Content-Type": "application/json", Accept: "application/json" },
-							 tags: { name: "PUT /api/user/login" },
-						 },
-	);
+  const res = http.put(
+    `${baseUrl}/api/user/login`,
+    JSON.stringify({ username, password }),
+                       {
+                         headers: { "Content-Type": "application/json", Accept: "application/json" },
+                         tags: { name: "PUT /api/user/login" },
+                       }
+  );
 
-	// Always include these (consistent across all tests)
-	check(res, {
-		"Login status is 200": (r) => r.status === 200,
-		  "Login status is 2xx": (r) => is2xxStatus(r.status),
-	});
+  // Always include these (consistent across all tests)
+  check(res, {
+    "Login status is 200": (r) => r.status === 200,
+        "Login status is 2xx": (r) => is2xxStatus(r.status),
+  });
 
-	const json = safeJson(res);
-	const token = json?.data?.token ?? null;
+  const json = safeJson(res);
+  const token = json?.data?.token ?? null;
 
-	const rawUserId = json?.data?.user?.userId;
-	const userId = rawUserId !== null && rawUserId !== undefined ? String(rawUserId) : null;
+  const rawUserId = json?.data?.user?.userId;
+  const userId = rawUserId !== null && rawUserId !== undefined ? String(rawUserId) : null;
 
-	// Optional checks with caller-controlled labels
-	const checks = {};
+  // Optional checks with caller-controlled labels
+  const checks = {};
 
-	if (labels.json) checks[labels.json] = () => json !== null;
-	if (labels.success) checks[labels.success] = () => json?.success === true;
-	if (labels.token) checks[labels.token] = () => typeof token === "string" && token.length > 20;
+  if (labels.json) checks[labels.json] = () => json !== null;
+  if (labels.success) checks[labels.success] = () => json?.success === true;
+  if (labels.token) checks[labels.token] = () => typeof token === "string" && token.length > 20;
 
-	if (requireUserId && labels.userId) {
-		checks[labels.userId] = () => typeof userId === "string" && userId.length > 0;
-	}
+  if (requireUserId && labels.userId) {
+    checks[labels.userId] = () => typeof userId === "string" && userId.length > 0;
+  }
 
-	if (labels.usernameMatches) {
-		// If API doesn't return a username field, treat as non-fatal.
-		checks[labels.usernameMatches] = () => {
-			const returned = json?.data?.user?.username;
-			return returned == null ? true : returned === username;
-		};
-	}
+  if (labels.usernameMatches) {
+    // If API doesn't return a username field, treat as non-fatal.
+    checks[labels.usernameMatches] = () => {
+      const returned = json?.data?.user?.username;
+      return returned == null ? true : returned === username;
+    };
+  }
 
-	if (Object.keys(checks).length > 0) {
-		check(res, checks);
-	}
+  if (Object.keys(checks).length > 0) {
+    check(res, checks);
+  }
 
-	const ok =
-	typeof token === "string" &&
-	token.length > 20 &&
-	(!requireUserId || (typeof userId === "string" && userId.length > 0));
+  const ok =
+  typeof token === "string" &&
+  token.length > 20 &&
+  (!requireUserId || (typeof userId === "string" && userId.length > 0));
 
-	return { res, json, token: ok ? token : null, userId: ok ? userId : null, ok };
+  return { res, json, token: ok ? token : null, userId: ok ? userId : null, ok };
 };
 
 /**
@@ -370,33 +422,33 @@ export const k6Login = ({
  * @returns {{ res:any, json:any, tripId:string|null, ok:boolean }}
  */
 export const k6CreateTripPlan = ({ http, check, baseUrl, userId, token, payload }) => {
-	const res = http.post(
-		`${baseUrl}/api/user/${userId}/tripPlan`,
-		JSON.stringify(payload),
-						  {
-							  headers: {
-								  "Content-Type": "application/json",
-								  Accept: "application/json",
-								  Authorization: `Bearer ${token}`,
-							  },
-							  tags: { name: "POST /api/user/{userId}/tripPlan" },
-						  },
-	);
+  const res = http.post(
+    `${baseUrl}/api/user/${userId}/tripPlan`,
+    JSON.stringify(payload),
+                        {
+                          headers: {
+                            "Content-Type": "application/json",
+                            Accept: "application/json",
+                            Authorization: `Bearer ${token}`,
+                          },
+                          tags: { name: "POST /api/user/{userId}/tripPlan" },
+                        }
+  );
 
-	const json = safeJson(res);
-	const tripIdRaw = extractTripId(json);
-	const tripId = tripIdRaw !== null && tripIdRaw !== undefined ? String(tripIdRaw) : null;
+  const json = safeJson(res);
+  const tripIdRaw = extractTripId(json);
+  const tripId = tripIdRaw !== null && tripIdRaw !== undefined ? String(tripIdRaw) : null;
 
-	check(res, {
-		"Create status is 201": (r) => r.status === 201,
-		  "Create status is 2xx": (r) => is2xxStatus(r.status),
-		  "Create response is JSON": () => json !== null,
-		  "Create success flag true": () => json?.success === true,
-		  "TripId present": () => typeof tripId === "string" && tripId.length > 0,
-	});
+  check(res, {
+    "Create status is 201": (r) => r.status === 201,
+        "Create status is 2xx": (r) => is2xxStatus(r.status),
+        "Create response is JSON": () => json !== null,
+        "Create success flag true": () => json?.success === true,
+        "TripId present": () => typeof tripId === "string" && tripId.length > 0,
+  });
 
-	const ok = is2xxStatus(res.status) && typeof tripId === "string" && tripId.length > 0;
-	return { res, json, tripId: ok ? tripId : null, ok };
+  const ok = is2xxStatus(res.status) && typeof tripId === "string" && tripId.length > 0;
+  return { res, json, tripId: ok ? tripId : null, ok };
 };
 
 /**
@@ -405,17 +457,17 @@ export const k6CreateTripPlan = ({ http, check, baseUrl, userId, token, payload 
  * @returns {{ res:any, ok:boolean }}
  */
 export const k6DeleteTripPlan = ({ http, check, baseUrl, userId, token, tripId }) => {
-	const res = http.del(`${baseUrl}/api/user/${userId}/tripPlan/${tripId}`, null, {
-		headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
-		tags: { name: "DELETE /api/user/{userId}/tripPlan/{tripId}" },
-	});
+  const res = http.del(`${baseUrl}/api/user/${userId}/tripPlan/${tripId}`, null, {
+    headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+    tags: { name: "DELETE /api/user/{userId}/tripPlan/{tripId}" },
+  });
 
-	check(res, {
-		"Delete status is 200": (r) => r.status === 200,
-		  "Delete status is 2xx": (r) => is2xxStatus(r.status),
-	});
+  check(res, {
+    "Delete status is 200": (r) => r.status === 200,
+        "Delete status is 2xx": (r) => is2xxStatus(r.status),
+  });
 
-	return { res, ok: is2xxStatus(res.status) };
+  return { res, ok: is2xxStatus(res.status) };
 };
 
 /**
@@ -424,11 +476,19 @@ export const k6DeleteTripPlan = ({ http, check, baseUrl, userId, token, tripId }
  * @returns {{ createOk:boolean, deleteOk:boolean, tripId:string|null }}
  */
 export const k6CreateAndDeleteTripPlan = ({ http, check, baseUrl, userId, token, payload }) => {
-	const created = k6CreateTripPlan({ http, check, baseUrl, userId, token, payload });
-	if (!created.ok || !created.tripId) {
-		return { createOk: false, deleteOk: false, tripId: null };
-	}
+  const created = k6CreateTripPlan({ http, check, baseUrl, userId, token, payload });
+  if (!created.ok || !created.tripId) {
+    return { createOk: false, deleteOk: false, tripId: null };
+  }
 
-	const deleted = k6DeleteTripPlan({ http, check, baseUrl, userId, token, tripId: created.tripId });
-	return { createOk: true, deleteOk: deleted.ok, tripId: created.tripId };
+  const deleted = k6DeleteTripPlan({
+    http,
+    check,
+    baseUrl,
+    userId,
+    token,
+    tripId: created.tripId,
+  });
+
+  return { createOk: true, deleteOk: deleted.ok, tripId: created.tripId };
 };
