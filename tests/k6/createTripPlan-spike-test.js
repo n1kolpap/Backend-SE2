@@ -1,5 +1,5 @@
 /**
- * k6 Spike test: Health ping + Login (TripTrail)
+ * k6 Spike test: Login -> Create Trip Plan -> Delete Trip Plan (TripTrail)
  *
  * Spike behavior:
  * - Start VUs at 0
@@ -8,8 +8,9 @@
  * - Spike down quickly back to 0
  *
  * Flow per VU iteration (in this exact order):
- *  1) Ping health endpoint (GET /api/health)
- *  2) Log in (PUT /api/user/login)
+ *  1) User logs in (PUT /api/user/login)
+ *  2) Creates a new trip plan (POST /api/user/{userId}/tripPlan) with the provided JSON
+ *  3) Deletes that trip plan (DELETE /api/user/{userId}/tripPlan/{tripId})
  */
 
 import http from "k6/http";
@@ -18,15 +19,15 @@ import {
 	getK6Config,
 	buildSpikeStages,
 	buildK6Thresholds,
-	k6PingHealth,
 	k6Login,
+	k6CreateAndDeleteTripPlan,
 } from "../../utils/helpers-k6.js";
 
 /* -----------------------------
  * Config (env-driven)
  * ----------------------------- */
 const cfg = getK6Config({
-	MAX_VUS: 2048,
+	MAX_VUS: 128,
 	RAMP_STAGE_DURATION: "10s",
 	MAX_TEST_DURATION: "45s",
 });
@@ -44,11 +45,25 @@ const {
 } = cfg;
 
 /* -----------------------------
+ * Request payloads
+ * ----------------------------- */
+const TRIP_PLAN_CREATE_PAYLOAD = {
+	destination: "Barcelona, Spain",
+	origin: "New York, USA",
+	startDate: "2025-08-15",
+	endDate: "2025-08-20",
+	budget: 2500,
+	purpose: "vacation",
+	interests: ["architecture", "food", "beaches"],
+	notes: "First time in Spain!",
+};
+
+/* -----------------------------
  * k6 options
  * ----------------------------- */
 export const options = {
 	scenarios: {
-		login_spike: {
+		tripplan_spike: {
 			executor: "ramping-vus",
 			startVUs: 0,
 			stages: buildSpikeStages({
@@ -63,26 +78,38 @@ export const options = {
 };
 
 /* -----------------------------
- * VU iteration: health ping -> login
+ * VU iteration: Login -> Create -> Delete
  * ----------------------------- */
 export default function () {
-	/* 0) HEALTH PING */
-	k6PingHealth({ http, check, baseUrl: BASE_URL });
-
 	/* 1) LOGIN */
-	k6Login({
+	const login = k6Login({
 		http,
 		check,
 		baseUrl: BASE_URL,
 		username: USERNAME,
 		password: PASSWORD,
-		requireUserId: false,
+		requireUserId: true,
 		labels: {
-			json: "Response is JSON",
-			success: "Success flag true",
-			token: "Token present",
-			usernameMatches: "Username matches",
+			json: "Login response is JSON",
+			success: "Login success flag true",
+			token: "JWT token present",
+			userId: "UserId present",
 		},
+	});
+
+	if (!login.ok || !login.token || !login.userId) {
+		sleep(Math.random() * 5);
+		return;
+	}
+
+	/* 2) CREATE -> 3) DELETE */
+	k6CreateAndDeleteTripPlan({
+		http,
+		check,
+		baseUrl: BASE_URL,
+		userId: login.userId,
+		token: login.token,
+		payload: TRIP_PLAN_CREATE_PAYLOAD,
 	});
 
 	sleep(Math.random() * 5);
