@@ -78,6 +78,8 @@ jobs:
           BASE_URL: http://127.0.0.1:3000
           # Optional: defaults for your scripts; override per workflow/run if needed
           # MAX_VUS: "128"
+          # createTripPlan MAX_VUS: load/spike: 384/128
+          # login MAX_VUS: load/spike: 3072/2048
           # RAMP_STAGE_DURATION: "30s"
           # MAX_TEST_DURATION: "2m"
           USERNAME: "john_doe"
