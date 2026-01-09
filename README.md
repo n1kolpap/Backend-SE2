@@ -80,6 +80,8 @@ triptrail-api/
 │   ├── authService.js       # Auth business logic
 │   ├── tripPlanService.js   # Trip plan business logic
 │   └── dailyPlanService.js  # Daily plan business logic
+├── tests/                   # Tests (mainly for ava)
+│   └── k6/                  # Tests for k6 only
 ├── utils/
 │   ├── responses.js         # Response helpers
 │   └── helpers.js           # Utility functions
@@ -500,7 +502,40 @@ For issues or questions:
 3. Ensure all required fields are included in requests
 4. Check that date formats are YYYY-MM-DD
 
+## 🎢 Max Supported Users
+The system handle:
+1. Logging in and checking the health of the site:
+	0. Routes:
+		- `GET /api/health`
+		- `PUT /api/user/login`
+	1. Load test:
+		- 0 to 3072 VUs in 30se
+		- hold for 60s
+		- 3072 to 0 VUs in 30s
+	2. Spike test:
+		- 0 to 2048 VUs in 10s
+		- hold for 25s
+		- 2048 to 0 VUs in 10s
+2. Logging in, creating a trip plan and deleting the trip plan:
+	0. Routes:
+		- `PUT /api/user/login`
+		- `POST /api/user/{userId}/tripPlan`
+		- `DELETE /api/user/{userId}/tripPlan/{tripId}`
+	1. Load test:
+		- 0 to 384 VUs in 30s
+		- hold for 60s
+		- 384 to 0 VUs in 30s
+	2. Spike test:
+		- 0 to 128 VUs in 10s
+		- hold for 25s
+		- 128 to 0 VUs in 10s
+In all cases, thresholds:
+- `http_req_duration`:
+    - threshold: `p(95)`<800ms, `abortOnFail`: true,
+    - threshold: `p(99)`<1200ms
+- `http_req_failed`:
+    - threshold: `rate`<0.001, `abortOnFail`: true
+
 ## 📄 License
 
-
-MIT
+GPL V3
