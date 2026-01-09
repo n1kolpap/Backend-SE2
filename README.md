@@ -502,14 +502,14 @@ For issues or questions:
 3. Ensure all required fields are included in requests
 4. Check that date formats are YYYY-MM-DD
 
-## Max Supported Users
+## 🎢 Max Supported Users
 The system handle:
 1. Logging in and checking the health of the site:
 	0. Routes:
 		- `GET /api/health`
 		- `PUT /api/user/login`
 	1. Load test:
-		- 0 to 3072 VUs in 30s
+		- 0 to 3072 VUs in 30se
 		- hold for 60s
 		- 3072 to 0 VUs in 30s
 	2. Spike test:
@@ -529,8 +529,13 @@ The system handle:
 		- 0 to 128 VUs in 10s
 		- hold for 25s
 		- 128 to 0 VUs in 10s
+In all cases, thresholds:
+- `http_req_duration`:
+    - threshold: `p(95)`<800ms, `abortOnFail`: true,
+    - threshold: `p(99)`<1200ms
+- `http_req_failed`:
+    - threshold: `rate`<0.001, `abortOnFail`: true
 
 ## 📄 License
 
-
-MIT
+GPL V3
