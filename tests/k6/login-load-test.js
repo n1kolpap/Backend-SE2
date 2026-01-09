@@ -1,121 +1,41 @@
 /**
  * k6 Load test: Health ping + Login (TripTrail)
  *
- * Fix applied:
- * - Removed `maxDuration` (your k6 version does not recognize it).
- * - Still enforces a “whole test max duration” by *constructing stages* so that:
- *     total ≈ MAX_TEST_DURATION
- *
  * Flow per VU iteration (in this exact order):
  *  1) Ping health endpoint (GET /api/health)
  *  2) Log in (PUT /api/user/login)
- *
- * Run:
- *   k6 run load_login.test.js
- *
- * Override via env vars:
- *   BASE_URL=http://localhost:3000 \
- *   MAX_VUS=50 \
- *   RAMP_STAGE_DURATION=30s \
- *   MAX_TEST_DURATION=2m \
- *   USERNAME=john_doe \
- *   PASSWORD=password123 \
- *   P95=800 \
- *   P99=1200 \
- *   RATE=0.01 \
- *   k6 run load_login.test.js
  */
 
 import http from "k6/http";
-import { check, sleep } from "k6";
+import { sleep } from "k6";
+import {
+	getK6Config,
+	buildLoadStages,
+	buildK6Thresholds,
+	k6PingHealth,
+	k6Login,
+} from "../../utils/helpers-k6.js";
 
 /* -----------------------------
- * Tunable variables (env-driven)
+ * Config (env-driven)
  * ----------------------------- */
-const BASE_URL = __ENV.BASE_URL || "http://localhost:3000";
-const MAX_VUS = Number(__ENV.MAX_VUS || 3072);
+const cfg = getK6Config({
+	MAX_VUS: 3072,
+	RAMP_STAGE_DURATION: "30s",
+	MAX_TEST_DURATION: "2m",
+});
 
-// “Max duration during a ramping stage”
-const RAMP_STAGE_DURATION = __ENV.RAMP_STAGE_DURATION || "30s";
-
-// “Max duration of whole test”
-const MAX_TEST_DURATION = __ENV.MAX_TEST_DURATION || "2m";
-
-// Credentials (README defaults)
-const USERNAME = __ENV.USERNAME || "john_doe";
-const PASSWORD = __ENV.PASSWORD || "password123";
-
-// Threshold variables
-const p95variable = Number(__ENV.P95 || 800); // ms
-const p99variable = Number(__ENV.P99 || 1200); // ms
-const rateVariable = Number(__ENV.RATE || 0.01); // fraction, e.g. 0.01 = 1%
-
-/* -----------------------------
- * Duration helpers
- * ----------------------------- */
-
-/**
- * Parse k6-style durations like: 500ms, 30s, 2m, 1h into seconds (number).
- * Supports: ms, s, m, h
- */
-function parseDurationToSeconds(d) {
-	const str = String(d).trim();
-	const match = str.match(/^(\d+(?:\.\d+)?)(ms|s|m|h)$/i);
-	if (!match) {
-		// Safe fallback: treat as seconds if the format is unexpected
-		const asNum = Number(str);
-		return Number.isFinite(asNum) ? asNum : 0;
-	}
-	const value = Number(match[1]);
-	const unit = match[2].toLowerCase();
-
-	if (unit === "ms") return value / 1000;
-	if (unit === "s") return value;
-	if (unit === "m") return value * 60;
-	if (unit === "h") return value * 3600;
-	return 0;
-}
-
-/**
- * Convert seconds to a k6 duration string (seconds precision).
- */
-function secondsToK6Duration(sec) {
-	const s = Math.max(0, Math.floor(sec));
-	return `${s}s`;
-}
-
-/**
- * Build stages so total test duration is bounded by MAX_TEST_DURATION,
- * while ramp stage duration is bounded by RAMP_STAGE_DURATION.
- *
- * Stages:
- *  1) ramp up: 0 -> MAX_VUS
- *  2) hold: MAX_VUS
- *  3) ramp down: MAX_VUS -> 0
- */
-function buildStages() {
-	const totalSec = parseDurationToSeconds(MAX_TEST_DURATION);
-	const rampMaxSec = parseDurationToSeconds(RAMP_STAGE_DURATION);
-
-	// Ensure the two ramp stages do not exceed the whole test duration.
-	const effectiveRampSec = Math.max(0, Math.min(rampMaxSec, totalSec / 2));
-	const holdSec = Math.max(0, totalSec - 2 * effectiveRampSec);
-
-	const stages = [];
-
-	// Ramp up
-	stages.push({ duration: secondsToK6Duration(effectiveRampSec), target: MAX_VUS });
-
-	// Hold (only if > 0)
-	if (holdSec > 0) {
-		stages.push({ duration: secondsToK6Duration(holdSec), target: MAX_VUS });
-	}
-
-	// Ramp down
-	stages.push({ duration: secondsToK6Duration(effectiveRampSec), target: 0 });
-
-	return stages;
-}
+const {
+	BASE_URL,
+	MAX_VUS,
+	RAMP_STAGE_DURATION,
+	MAX_TEST_DURATION,
+	USERNAME,
+	PASSWORD,
+	p95variable,
+	p99variable,
+	rateVariable,
+} = cfg;
 
 /* -----------------------------
  * k6 options
@@ -124,84 +44,40 @@ export const options = {
 	scenarios: {
 		login_load: {
 			executor: "ramping-vus",
-			startVUs: 0, // required: Start VUs should be 0
-			stages: buildStages(),
+			startVUs: 0,
+			stages: buildLoadStages({
+				maxTestDuration: MAX_TEST_DURATION,
+				rampStageDuration: RAMP_STAGE_DURATION,
+				maxVUs: MAX_VUS,
+			}),
 			gracefulRampDown: "30s",
 		},
 	},
-
-	// Thresholds (variable-driven). Abort on p95 or failure-rate breaches.
-	thresholds: {
-		http_req_duration: [
-			{ threshold: `p(95)<${p95variable}`, abortOnFail: true },
-			`p(99)<${p99variable}`,
-		],
-		http_req_failed: [{ threshold: `rate<${rateVariable}`, abortOnFail: true }],
-	},
+	thresholds: buildK6Thresholds({ p95variable, p99variable, rateVariable }),
 };
 
 /* -----------------------------
  * VU iteration: health ping -> login
  * ----------------------------- */
 export default function () {
-	/* -----------------------------
-	 * 0) HEALTH PING
-	 * ----------------------------- */
-	const healthUrl = `${BASE_URL}/api/health`;
+	/* 0) HEALTH PING */
+	k6PingHealth({ http, check, baseUrl: BASE_URL });
 
-	const healthRes = http.get(healthUrl, {
-		headers: { Accept: "application/json" },
-		tags: { name: "GET /api/health" },
-	});
-
-	check(healthRes, {
-		"Health status is 200": (r) => r.status === 200,
-		  "Health status is 2xx": (r) => Math.floor(r.status / 100) === 2,
-	});
-
-	/* -----------------------------
-	 * 1) LOGIN
-	 * ----------------------------- */
-	const url = `${BASE_URL}/api/user/login`;
-
-	const payload = JSON.stringify({
+	/* 1) LOGIN */
+	k6Login({
+		http,
+		check,
+		baseUrl: BASE_URL,
 		username: USERNAME,
 		password: PASSWORD,
-	});
-
-	const params = {
-		headers: {
-			"Content-Type": "application/json",
-			Accept: "application/json",
+		requireUserId: false,
+		labels: {
+			json: "Response is JSON",
+			success: "Success flag true",
+			token: "Token present",
+			usernameMatches: "Username matches",
 		},
-		tags: { name: "PUT /api/user/login" },
-	};
-
-	const res = http.put(url, payload, params);
-
-	// Status checks (useful during load to see error patterns quickly)
-	check(res, {
-		"Login status is 200": (r) => r.status === 200,
-		  "Login status is 2xx": (r) => Math.floor(r.status / 100) === 2,
 	});
 
-	// Basic response-shape checks (expects JSON + token when successful)
-	let json = null;
-	try {
-		json = res.json();
-	} catch (_) {
-		// Keep json as null; check below will fail, which is what we want.
-	}
-
-	const token = json?.data?.token;
-
-	check(res, {
-		"Response is JSON": () => json !== null,
-		  "Success flag true": () => json?.success === true,
-		  "Token present": () => typeof token === "string" && token.length > 20,
-		  "Username matches": () => json?.data?.user?.username === USERNAME,
-	});
-
-	// Randomized think time to avoid unrealistically synchronized traffic
 	sleep(Math.random() * 5);
 }
