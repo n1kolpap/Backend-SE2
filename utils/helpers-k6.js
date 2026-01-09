@@ -7,7 +7,76 @@
  * - Pure JS (no imports from "k6") so this file remains Node-safe.
  * - Works in k6 (global __ENV) and in Node contexts (process.env) without throwing.
  * - Centralizes env config, stages, thresholds, and common request flows.
+ *
+ * ---------------------------------------------------------------------------
+ * STAGE & DURATION PLANNING (read this before tuning tests)
+ * ---------------------------------------------------------------------------
+ *
+ * k6 "ramping-vus" executor drives *active* Virtual Users (VUs) over time using
+ * an array of stages:
+ *   [{ duration: "10s", target: 100 }, ...]
+ *
+ * For each stage, k6 will ramp the number of active VUs from the current VU
+ * count to the stage's `target` over `duration`.
+ *
+ * Important details:
+ * - Ramping is conceptually linear, but k6 adjusts VUs in discrete steps
+ *   internally (you should treat it as "approximately linear").
+ * - `startVUs: 0` means the test begins with 0 active VUs.
+ *
+ * ---------------------------------------------------------------------------
+ * How buildLoadStages() / buildSpikeStages() allocate time
+ * ---------------------------------------------------------------------------
+ *
+ * These helpers use the same allocation model:
+ *   totalSec   = parseDurationToSeconds(MAX_TEST_DURATION)
+ *   rampMaxSec = parseDurationToSeconds(RAMP_STAGE_DURATION)
+ *
+ * They build: ramp-up -> hold -> ramp-down
+ * while enforcing: ramp-up + ramp-down <= total duration.
+ *
+ * Math used:
+ *   effectiveRampSec = min(rampMaxSec, totalSec / 2)
+ *   holdSec          = totalSec - 2 * effectiveRampSec
+ *
+ * Resulting stages:
+ *   1) { duration: effectiveRampSec, target: MAX_VUS }
+ *   2) { duration: holdSec,          target: MAX_VUS }   (only if holdSec > 0)
+ *   3) { duration: effectiveRampSec, target: 0 }
+ *
+ * Examples:
+ * - total=45s, rampCap=10s  => up=10s, hold=25s, down=10s
+ * - total=12s, rampCap=10s  => up=6s,  hold=0s,  down=6s
+ *
+ * ---------------------------------------------------------------------------
+ * How buildMultiSpikeStages() relates to total test duration
+ * ---------------------------------------------------------------------------
+ *
+ * buildMultiSpikeStages() is different: it does NOT auto-fit to MAX_TEST_DURATION.
+ * Instead, you specify a "spike shape" and repeat it N times.
+ *
+ * One spike takes:
+ *   spikeDuration = rampUp + hold + rampDown
+ * Between spikes, optional rest at 0 VUs:
+ *   restDuration  = rest (applied between spikes, not after the last spike)
+ *
+ * Total duration for `spikes` spikes:
+ *   total = spikes * (rampUp + hold + rampDown) + (spikes - 1) * rest
+ *
+ * Planning guidance:
+ * - Choose spike shape first (rampUp/hold/rampDown), then compute total duration.
+ * - Or choose a target MAX_TEST_DURATION, then solve for hold/rest values.
+ *
+ * ---------------------------------------------------------------------------
+ * Quick rules of thumb for stage tuning
+ * ---------------------------------------------------------------------------
+ *
+ * - "Spike" tests: rampUp small (2–10s), short holds (5–20s), fast rampDown (2–10s).
+ * - "Load" tests: rampUp moderate (30–120s), long holds (minutes+), rampDown moderate.
+ * - If you care about autoscaling / cache warmup, include rest at 0 between spikes.
+ * - If you care about sustained capacity, emphasize a longer hold phase.
  * ========================================================================== */
+
 
 /**
  * Get an env object regardless of runtime:
@@ -72,8 +141,16 @@ export const getK6Config = (defaults = {}) => {
 };
 
 /**
- * Parse k6-style durations like: 500ms, 30s, 2m, 1h into seconds (number).
- * Supports: ms, s, m, h
+ * Parse k6-style durations like:
+ *   - "500ms", "2s", "3m", "1h"
+ * into seconds as a number.
+ *
+ * Why this exists:
+ * - Our stage planners do math in seconds, then convert back to k6 duration strings.
+ *
+ * Notes:
+ * - If the format is unexpected, we fall back to Number(str) and treat it as seconds.
+ * - Returned value is a number (can be fractional if "ms" is used).
  */
 export const parseDurationToSeconds = (d) => {
 	const str = String(d).trim();
@@ -101,6 +178,23 @@ export const secondsToK6Duration = (sec) => {
 	return `${s}s`;
 };
 
+/**
+ * Internal stage builder used by both "load" and "spike" helpers.
+ *
+ * Allocation model:
+ * - We take the "cap" for a ramp stage (rampStageDuration).
+ * - If the test is too short to fit ramp up + ramp down at that cap,
+ *   we shrink both ramps equally so the total fits.
+ *
+ * This guarantees:
+ * - Total stage time <= maxTestDuration (bounded)
+ * - Ramps are symmetric (up time == down time)
+ *
+ * If you need:
+ * - asymmetric ramps (fast up, slow down), or
+ * - multiple spikes fitted inside MAX_TEST_DURATION
+ * then do NOT use buildSpikeStages(); use buildMultiSpikeStages() instead.
+ */
 const buildRampingStages = ({ maxTestDuration, rampStageDuration, maxVUs }) => {
 	const totalSec = parseDurationToSeconds(maxTestDuration);
 	const rampMaxSec = parseDurationToSeconds(rampStageDuration);
@@ -164,8 +258,99 @@ json?.data?.tripPlan?.tripId ||
 json?.data?.tripPlan?.id ||
 null;
 
+/**
+ * Build multiple spikes (repeated up/hold/down patterns) within a single test.
+ *
+ * This helper intentionally does NOT "fit" into MAX_TEST_DURATION.
+ * Instead, you define a spike pattern and number of spikes, and the stages are emitted.
+ *
+ * Total duration formula:
+ *   total = spikes * (rampUp + hold + rampDown) + (spikes - 1) * rest
+ *
+ * Example:
+ *   spikes=3, rampUp=5s, hold=10s, rampDown=5s, rest=10s
+ *   total = 3*(5+10+5) + 2*10 = 60 + 20 = 80s
+ *
+ * Planning workflow:
+ * 1) Pick maxVUs (peak load).
+ * 2) Pick rampUp/rampDown (how quickly you change load).
+ * 3) Pick hold (how long you sustain the peak).
+ * 4) Pick rest (time to recover / cool down between spikes).
+ * 5) Compute total duration and set MAX_TEST_DURATION accordingly (in the test),
+ *    or ignore MAX_TEST_DURATION for multi-spike tests (it won’t be used).
+ *
+ * @param {object} args
+ * @param {number} args.maxVUs - peak VUs for each spike
+ * @param {number} args.spikes - how many spikes to run
+ * @param {string} args.rampUp - duration for ramp up (e.g. "5s")
+ * @param {string} args.hold - duration to hold at peak (e.g. "10s")
+ * @param {string} args.rampDown - duration for ramp down (e.g. "5s")
+ * @param {string} [args.rest="0s"] - rest at 0 VUs between spikes (e.g. "10s")
+ * @returns {Array<{duration:string,target:number}>} k6 stages
+ */
+export const buildMultiSpikeStages = ({
+	maxVUs,
+	spikes,
+	rampUp,
+	hold,
+	rampDown,
+	rest = "0s",
+}) => {
+	const stages = [];
+
+	for (let i = 0; i < spikes; i += 1) {
+		// Spike up
+		stages.push({ duration: rampUp, target: maxVUs });
+
+		// Hold at peak
+		if (hold !== "0s") {
+			stages.push({ duration: hold, target: maxVUs });
+		}
+
+		// Spike down
+		stages.push({ duration: rampDown, target: 0 });
+
+		// Rest at 0 between spikes (except after the last one)
+		if (rest !== "0s" && i < spikes - 1) {
+			stages.push({ duration: rest, target: 0 });
+		}
+	}
+
+	return stages;
+};
+
+/**
+ * Calculate the total duration (in seconds) for a multi-spike plan.
+ * Useful when you want to set MAX_TEST_DURATION consistently with your spike pattern.
+ *
+ * @returns {number} total seconds
+ */
+export const estimateMultiSpikeTotalSeconds = ({ spikes, rampUp, hold, rampDown, rest = "0s" }) => {
+	const rampUpSec = parseDurationToSeconds(rampUp);
+	const holdSec = parseDurationToSeconds(hold);
+	const rampDownSec = parseDurationToSeconds(rampDown);
+	const restSec = parseDurationToSeconds(rest);
+
+	return spikes * (rampUpSec + holdSec + rampDownSec) + Math.max(0, spikes - 1) * restSec;
+};
+
 /* --------------------------------------------------------------------------
- * FLOW HELPERS (ping, login, create/delete trip plan)
+ * FLOW HELPERS: what they guarantee / what they do NOT
+ * --------------------------------------------------------------------------
+ *
+ * - k6PingHealth(): best-effort visibility. It DOES NOT abort the iteration by itself.
+ *   Your test can decide to early-return if health fails (recommended for noisy CI).
+ *
+ * - k6Login(): executes login request + checks.
+ *   It returns { ok, token, userId }. When ok=false, token/userId are null.
+ *   The "labels" map controls the exact check names emitted in k6 output.
+ *
+ * - k6CreateTripPlan(): requires token + userId (caller responsibility).
+ *   It checks for status 201 and extracts tripId from common JSON shapes.
+ *
+ * - k6DeleteTripPlan(): requires token + userId + tripId (caller responsibility).
+ *
+ * - k6CreateAndDeleteTripPlan(): convenience wrapper; if create fails, delete is skipped.
  * -------------------------------------------------------------------------- */
 
 /**
